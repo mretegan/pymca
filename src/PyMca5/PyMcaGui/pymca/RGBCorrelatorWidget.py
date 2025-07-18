@@ -504,6 +504,22 @@ class RGBCorrelatorWidget(qt.QWidget):
             colorlist = color * 1
         ddict = {}
         ddict["event"] = "updated"
+
+        # whitening the nan pixels
+        if bool(numpy.isnan(self.__redImageData).any()) or bool(numpy.isnan(self.__greenImageData).any()) or bool(numpy.isnan(self.__blueImageData).any()):
+            colorlist = ["r", "g", "b"]
+            nan_indices = numpy.where(numpy.isnan(self.__redImageData))
+            redImageData = numpy.copy(self.__redImageData)
+            greenImageData = numpy.copy(self.__greenImageData)
+            blueImageData = numpy.copy(self.__blueImageData)
+            redImageData[nan_indices[0], nan_indices[1]] = max(numpy.nanmax(self.__redImageData), 1) + 255
+            greenImageData[nan_indices[0], nan_indices[1]] = max(numpy.nanmax(self.__greenImageData), 1) + 255
+            blueImageData[nan_indices[0], nan_indices[1]] = max(numpy.nanmax(self.__blueImageData), 1) + 255
+        else:
+            redImageData = self.__redImageData
+            greenImageData = self.__greenImageData
+            blueImageData = self.__blueImageData
+
         if "r" in colorlist:
             # get slider
             label = self.__redLabel
@@ -518,13 +534,13 @@ class RGBCorrelatorWidget(qt.QWidget):
                 valmax = valmin + delta * self.__redMax
             if USE_STRING:
                 red, size, minmax = self.getColorImage(
-                    self.__redImageData, spslut.RED, valmin, valmax, 0
+                    redImageData, spslut.RED, valmin, valmax, 0
                 )
                 self.__redImage = numpy.array(red).astype(numpy.uint8)
                 ddict["red"] = red
             else:
                 red, size, minmax = self.getColorImage(
-                    self.__redImageData, spslut.RED, valmin, valmax, 1
+                    redImageData, spslut.RED, valmin, valmax, 1
                 )
                 self.__redImage = red
                 ddict["red"] = red.tobytes()
@@ -544,13 +560,13 @@ class RGBCorrelatorWidget(qt.QWidget):
                 valmax = valmin + delta * self.__greenMax
             if USE_STRING:
                 green, size, minmax = self.getColorImage(
-                    self.__greenImageData, spslut.GREEN, valmin, valmax
+                    greenImageData, spslut.GREEN, valmin, valmax
                 )
                 self.__greenImage = numpy.array(green).astype(numpy.uint8)
                 ddict["green"] = green
             else:
                 green, size, minmax = self.getColorImage(
-                    self.__greenImageData, spslut.GREEN, valmin, valmax, 1
+                    greenImageData, spslut.GREEN, valmin, valmax, 1
                 )
                 self.__greenImage = green
                 ddict["green"] = green.tobytes()
@@ -571,76 +587,18 @@ class RGBCorrelatorWidget(qt.QWidget):
                 valmax = valmin + delta * self.__blueMax
             if USE_STRING:
                 blue, size, minmax = self.getColorImage(
-                    self.__blueImageData, spslut.BLUE, valmin, valmax
+                    blueImageData, spslut.BLUE, valmin, valmax
                 )
                 self.__blueImage = numpy.array(blue).astype(numpy.uint8)
                 ddict["blue"] = blue
             else:
                 blue, size, minmax = self.getColorImage(
-                    self.__blueImageData, spslut.BLUE, valmin, valmax, 1
+                    blueImageData, spslut.BLUE, valmin, valmax, 1
                 )
                 self.__blueImage = blue
                 ddict["blue"] = blue.tobytes()
             ddict["size"] = size
 
-        #whitening the nan pixels
-        for label in (self.__redLabel, self.__greenLabel, self.__blueLabel):
-          print(label)
-          if label is not None:
-            if bool(numpy.isnan(self._imageDict[label]["image"]).any()):
-                tmp = self._imageDict[label]["image"]
-                nan_indices = numpy.where(numpy.isnan(tmp))
-                if not 'r' in colorlist:
-                    nan_white = numpy.zeros(tmp.shape, dtype=numpy.uint8)
-                    nan_white[nan_indices[0], nan_indices[1]] = 255
-                    if USE_STRING:
-                        red = self.getColorImage(
-                            nan_white, spslut.RED, 0, 255,
-                        )[0]
-                        self.__redImage = numpy.array(red).astype(numpy.uint8)
-                        ddict['red'] = red
-                    else:
-                        red = self.getColorImage(
-                            nan_white, spslut.RED, 0, 255, 1
-                        )[0]
-                        self.__redImage = red
-                        ddict["red"] = red.tobytes()
-                if not 'g' in colorlist:
-                    nan_white = numpy.zeros(tmp.shape, dtype=numpy.uint8)
-                    nan_white[nan_indices[0], nan_indices[1]] = 255
-                    if USE_STRING:
-                        green = self.getColorImage(
-                            nan_white, spslut.GREEN, 0, 255,
-                        )[0]
-                        self.__redImage = numpy.array(green).astype(numpy.uint8)
-                        ddict['green'] = green
-                    else:
-                        green = self.getColorImage(
-                            nan_white, spslut.GREEN, 0, 255, 1
-                        )[0]
-                        self.__redImage = green
-                        ddict["green"] = green.tobytes()
-                if not 'b' in colorlist:
-                    nan_white = numpy.zeros(tmp.shape, dtype=numpy.uint8)
-                    nan_white[nan_indices[0], nan_indices[1]] = 255
-                    if USE_STRING:
-                        blue = self.getColorImage(
-                            nan_white, spslut.BLUE, 0, 255,
-                        )[0]
-                        self.__redImage = numpy.array(blue).astype(numpy.uint8)
-                        ddict['blue'] = blue
-                    else:
-                        blue = self.getColorImage(
-                            nan_white, spslut.BLUE, 0, 255, 1
-                        )[0]
-                        self.__redImage = blue
-                        ddict["blue"] = blue.tobytes()
-        print(self.__redImageData)
-        print(self.__greenImageData)
-        print(self.__blueImageData)
-        print(self.__redImage)
-        print(self.__greenImage)
-        print(self.__blueImage)
         image = self.__redImage + self.__greenImage + self.__blueImage
         ddict["image"] = image
         self.sigRGBCorrelatorWidgetSignal.emit(ddict)
