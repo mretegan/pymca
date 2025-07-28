@@ -1,5 +1,5 @@
 # /*##########################################################################
-# Copyright (C) 2004-2023 European Synchrotron Radiation Facility
+# Copyright (C) 2004-2025 European Synchrotron Radiation Facility
 #
 # This file is part of the PyMca X-ray Fluorescence Toolkit developed at
 # the ESRF.
@@ -506,15 +506,25 @@ class RGBCorrelatorWidget(qt.QWidget):
         ddict["event"] = "updated"
 
         # whitening the nan pixels
-        if bool(numpy.isnan(self.__redImageData).any()) or bool(numpy.isnan(self.__greenImageData).any()) or bool(numpy.isnan(self.__blueImageData).any()):
+        if (
+            bool(numpy.isnan(self.__redImageData).any())
+            or bool(numpy.isnan(self.__greenImageData).any())
+            or bool(numpy.isnan(self.__blueImageData).any())
+        ):
             colorlist = ["r", "g", "b"]
             nan_indices = numpy.where(numpy.isnan(self.__redImageData))
             redImageData = numpy.copy(self.__redImageData)
             greenImageData = numpy.copy(self.__greenImageData)
             blueImageData = numpy.copy(self.__blueImageData)
-            redImageData[nan_indices[0], nan_indices[1]] = max(numpy.nanmax(self.__redImageData), 1) + 255
-            greenImageData[nan_indices[0], nan_indices[1]] = max(numpy.nanmax(self.__greenImageData), 1) + 255
-            blueImageData[nan_indices[0], nan_indices[1]] = max(numpy.nanmax(self.__blueImageData), 1) + 255
+            redImageData[nan_indices[0], nan_indices[1]] = (
+                max(numpy.nanmax(self.__redImageData), 1) + 255
+            )
+            greenImageData[nan_indices[0], nan_indices[1]] = (
+                max(numpy.nanmax(self.__greenImageData), 1) + 255
+            )
+            blueImageData[nan_indices[0], nan_indices[1]] = (
+                max(numpy.nanmax(self.__blueImageData), 1) + 255
+            )
         else:
             redImageData = self.__redImageData
             greenImageData = self.__greenImageData
