@@ -962,7 +962,6 @@ class Hdf5SelectionDialog(qt.QDialog):
                 )
             msg.exec()
             self.selectedItemUri = None
-        print(self.selectedItemUri)
 
     def exec(self):
         with h5open(self.filename) as hdf5File:
