@@ -1,0 +1,93 @@
+name: Release
+
+on:
+#  release:
+#    types: [published]
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Force release even if version was not changed'
+        required: false
+        default: 'false'
+        # change to 'true' for manual release
+  push:
+    branches:
+      - master
+    paths:
+      - 'src/PyMca5/__init__.py'
+
+jobs:
+  version-change:
+    runs-on: ubuntu-latest
+    outputs:
+      should_release: ${{ steps.check-change.outputs.should_release }}
+      version: ${{ steps.check-change.outputs.version }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0 #to have all commits
+
+      - name: Get version from file
+        id: check-change
+        run: |
+          version=$(grep -Po "^__version__ = '\K[^']+" src/PyMca5/__init__.py)
+          echo "Found version: $version"
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+          # Check if the version line was modified in the last commit
+          changed=$(git diff HEAD^ HEAD -- src/PyMca5/__init__.py | grep '__version__' || true)
+
+          if [[ -n "$changed" ]]; then
+            echo "Version changed"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.force }}" == "true" ]]; then
+            echo "Release was triggered manually"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          else
+            echo "No release... for now"
+            echo "should_release=false" >> $GITHUB_OUTPUT
+          fi
+
+  version-check:
+    needs: version-change
+    if: needs.version-change.outputs.should_release == 'true'
+    uses: ./.github/workflows/Version.yml
+
+  run-build-upload:
+    needs: version-check
+    uses: ./.github/workflows/Wheels.yml
+    secrets:
+      TESTPYPI_PASSWORD: ${{ secrets.TESTPYPI_PASSWORD }}
+
+  trigger-windows-pyinstaller:
+    needs: run-build-upload
+    uses: ./.github/workflows/WindowsExe.yml
+
+  trigger-windows-cx:
+    needs: run-build-upload
+    uses: ./.github/workflows/WindowsInstaller.yml
+
+  trigger-mac:
+    needs: run-build-upload
+    uses: ./.github/workflows/MacOS.yml
+
+  tag-release:
+    needs:
+      - trigger-windows-cx
+      - trigger-mac
+    uses: ./.github/workflows/TagRelease.yml
+
+  changelog:
+    needs: tag-release
+    uses: ./.github/workflows/ChangeLog.yml
+
+  upload-release:
+    needs: tag-release
+    uses: ./.github/workflows/UploadRelease.yml
+
+  upload-pypi:
+    needs: tag-release
+    uses: ./.github/workflows/PyPI.yml
+
+
+

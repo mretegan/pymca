@@ -1,0 +1,62 @@
+name: Upload release
+
+on:
+  workflow_call:
+
+jobs:
+  upload_release:
+    name: Upload all packages
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Linux-sdist
+          path: dist
+
+      - name: Download Mac arm64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-arm-pyinstaller-artifacts-dmg
+          path: dist
+
+      - name: Rename Mac arm64 artifact
+        run: |
+          sudo mv dist/PyMca5*.dmg dist/PyMca_arm64.dmg
+
+      - name: Download Mac x86 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-x86(intel)-pyinstaller-artifacts-dmg
+          path: dist
+
+      - name: Rename Mac x86 artifact
+        run: |
+          sudo mv dist/PyMca5*.dmg dist/PyMca_x86.dmg
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installer-cxfreeze
+          path: dist
+
+      - name: List all downloaded files
+        run: ls -R dist
+
+      - name: Get latest version from TestPyPI
+        id: get_version
+        run: |
+          PACKAGE="PyMca5"
+          META=$(curl -s https://test.pypi.org/pypi/$PACKAGE/json)
+          VERSION=$(echo "$META" | jq -r '.info.version')
+          echo "Latest version is $VERSION"
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Upload to GitHub Release (tar.gz, dmg, exe)
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: "v${{ steps.get_version.outputs.version }}"
+          files: dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
