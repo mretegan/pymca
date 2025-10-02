@@ -1061,6 +1061,7 @@ class RGBCorrelatorWidget(qt.QWidget):
             self.addImage(dataObject.data, os.path.basename(filename) + " " + label)
 
     def _addHf5File(self, uri, ignoreStDev=True):
+        images_sizes_consistent = True
         tmp = uri.split("::")
         if len(tmp) == 1:
             tmp = uri, None
@@ -1078,23 +1079,22 @@ class RGBCorrelatorWidget(qt.QWidget):
                     h5path = None
         # Prompt for missing HDF5 path
         if not h5path:
-            tmp = HDF5Widget.getUri(
-                parent=self, filename=filename, message="Select Group or Dataset", multi_selection=True
+            tmp = HDF5Widget.getUris(
+                parent=self, filename=filename, message="Select Group or Dataset"
             )
             if not tmp:
                 return
-            self.bad_images_size = 0
             if isinstance(tmp, list):
                 for item in tmp:
-                    self._addHf5File(item)
-                    if self.bad_images_size:
+                    images_sizes_consistent = self._addHf5File(item)
+                    if not images_sizes_consistent:
                         break
             else:
                 tmp = tmp.split("::")
                 if len(tmp) == 2:
                     h5path = tmp[1]
         if not h5path:
-            return
+            return False
         # Add datasets from HDF5 path
         with HDF5Widget.h5open(filename) as hdf5File:
             if self.__imageLength:
@@ -1119,7 +1119,7 @@ class RGBCorrelatorWidget(qt.QWidget):
                     )
                 )
                 msg.exec()
-                self.bad_images_size = 1
+                images_sizes_consistent = False
                 self._addHf5File(filename, ignoreStDev=ignoreStDev)
             elif len({dset.size for dset in datasets}) > 1:
                 msg = qt.QMessageBox(self)
@@ -1135,6 +1135,7 @@ class RGBCorrelatorWidget(qt.QWidget):
                 for dset in datasets:
                     label = "/".join(dset.name.split("/")[-2:])
                     self.addImage(dset[()], label)
+        return images_sizes_consistent
 
     def _addQImageReadable(self, filename, ignoreStDev=True):
         if ignoreStDev and self._ignoreStDevFile(filename):

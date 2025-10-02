@@ -862,7 +862,7 @@ class Hdf5SelectionDialog(qt.QDialog):
         :param value: If True returns dataset value instead of just the dataset.
             This must be False if itemtype is not "dataset".
         :param str itemtype: "dataset" or "group" or "any" (default)
-        :param bool multi_selection: If True the output selection can be a list
+        :param bool multi_selection: If True the output selection can be a list or a tuple
         """
         message = message if message is not None else 'Select your item'
         self.itemtype = itemtype if itemtype is not None else "any"
@@ -908,7 +908,8 @@ class Hdf5SelectionDialog(qt.QDialog):
         mainLayout.addWidget(buttonContainer)
 
         self.resize(400, 200)
-        self.selectedItemUri = []
+        self._selectedUris = set()
+        # self.selectedItemUri = None
         """URI of selected HDF5 item, with format 'filename::item_name'
         """
 
@@ -936,7 +937,7 @@ class Hdf5SelectionDialog(qt.QDialog):
     def onOk(self):
         selectedIndexes = self.fileView.selectedIndexes()
         # list have multiple duplicates even for one selection
-        selectedUris = set()
+        self._selectedUris.clear()
 
         for index in selectedIndexes:
             item = self.fileModel.getProxyFromIndex(index)
@@ -946,15 +947,9 @@ class Hdf5SelectionDialog(qt.QDialog):
                              (itemType not in self.datasetTypes and self.itemtype == "group")
             if isExpectedType:
                 uri = item.file.filename + "::" + item.name
-                selectedUris.add(uri)
+                self._selectedUris.add(uri)
 
-        self.selectedItemUri = list(selectedUris)
-        # to be back compatible with single selection
-        if len(self.selectedItemUri) == 1:
-            self.selectedItemUri = self.selectedItemUri[0]
-        if self.selectedItemUri:
-            self.accept()
-        else:
+        if len(self._selectedUris) == 0:
             msg = qt.QMessageBox(self)
             msg.setIcon(qt.QMessageBox.Critical)
             msg.setText(
@@ -962,6 +957,25 @@ class Hdf5SelectionDialog(qt.QDialog):
                 )
             msg.exec()
             self.selectedItemUri = None
+        else:
+            self.accept()
+
+    @property
+    def selectedItemUri(self):
+        # Return the first URI or None if empty
+        return next(iter(self._selectedUris), None)
+
+    @property
+    def selectedItemUris(self):
+        # Return a list of all selected URIs
+        return list(self._selectedUris)
+
+    @selectedItemUri.setter
+    def selectedItemUri(self, uri):
+        if uri is None:
+            self._selectedUris.clear()
+        else:
+            self._selectedUris = {uri}
 
     def exec(self):
         with h5open(self.filename) as hdf5File:
@@ -1034,13 +1048,21 @@ def getGroupUri(parent=None, filename=None, message=None):
     selectedHdf5Uri = hdf5Dialog.selectedItemUri
     return selectedHdf5Uri
 
-def getUri(parent=None, filename=None, message=None, multi_selection=False):
-    hdf5Dialog = Hdf5SelectionDialog(parent, filename, message, "any", multi_selection)
+def getUri(parent=None, filename=None, message=None):
+    hdf5Dialog = Hdf5SelectionDialog(parent, filename, message, "any", multi_selection=False)
     ret = hdf5Dialog.exec()
     if not ret:
         return None
     selectedHdf5Uri = hdf5Dialog.selectedItemUri
     return selectedHdf5Uri
+
+def getUris(parent=None, filename=None, message=None):
+    hdf5Dialog = Hdf5SelectionDialog(parent, filename, message, "any", multi_selection=True)
+    ret = hdf5Dialog.exec()
+    if not ret:
+        return None
+    selectedHdf5Uris = hdf5Dialog.selectedItemUris
+    return selectedHdf5Uris
 
 def getDatasetDialog(filename=None, value=False, message=None, parent=None):
     # function kept for backward compatibility, in case someone

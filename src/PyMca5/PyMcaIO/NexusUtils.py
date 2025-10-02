@@ -637,13 +637,6 @@ def selectDatasets(root, match=None):
     :param match: restrict selection (callable, 'max_ndim', 'mostcommon_ndim')
     :returns list(h5py.Dataset):
     """
-    # accept the list to hande multiple selection for h5 file
-    if isinstance(root, (list, tuple)):
-        datasets = []
-        for single_root in root:
-            datasets.extend(selectDatasets(single_root, match=match))
-        return datasets
-
     if match == 'max_ndim':
         match, post = None, match
     elif match == 'mostcommon_ndim':
