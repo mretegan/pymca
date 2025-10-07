@@ -155,4 +155,4 @@ jobs:
         with:
           name: windows-installer-cxfreeze
           path: dist/*
-          retention-days: 1
+          retention-days: 3

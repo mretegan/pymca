@@ -242,7 +242,7 @@ jobs:
         with:
           name: macos-arm-pyinstaller-artifacts-dmg
           path: dist/*.dmg
-          retention-days: 1
+          retention-days: 3
 
       # upload .app as well
       - name: Upload artifacts
@@ -414,7 +414,327 @@ jobs:
         with:
           name: macos-x86(intel)-pyinstaller-artifacts-dmg
           path: dist/*.dmg
+          retention-days: 3
+
+  macos_universal_app:
+    runs-on: macos-latest
+    needs:
+      - macos_arm_pyinstaller_python312
+      - macos_x86_pyinstaller_python312
+    steps:
+
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: "3.12"
+
+      - name: Install Rosetta
+        run: |
+          sudo softwareupdate --install-rosetta --agree-to-license
+
+      # Yes dmg is needed because pyinstaller.spec have better compression and cleaning for dmg.
+      # APPs work as well but file size is 2-3 times larger.
+
+      - name: Download Mac arm64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-arm-pyinstaller-artifacts-dmg
+          path: dist/tmp/arm64
+
+      - name: Download Mac x86 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-x86(intel)-pyinstaller-artifacts-dmg
+          path: dist/tmp/x86
+
+      - name: Create output directories
+        run: |
+          mkdir -p dist/arm64 dist/x86
+
+      - name: Attach ARM64 DMG and copy files
+        run: |
+          ARM_DMG=$(find dist/tmp/arm64 -name "*.dmg" | head -n 1)
+          hdiutil attach "$ARM_DMG" -mountpoint /Volumes/arm64-dmg
+          cp -R /Volumes/arm64-dmg/* dist/arm64/
+          hdiutil detach /Volumes/arm64-dmg
+
+      - name: Attach x86 DMG and copy files
+        run: |
+          X86_DMG=$(find dist/tmp/x86 -name "*.dmg" | head -n 1)
+          hdiutil attach "$X86_DMG" -mountpoint /Volumes/x86-dmg
+          cp -R /Volumes/x86-dmg/* dist/x86/
+          hdiutil detach /Volumes/x86-dmg
+
+      - name: Set app name variable
+        run: |
+          APP_NAME=$(find dist/arm64 -maxdepth 1 -name '*.app' | head -n 1 | xargs -n 1 basename)
+          echo "APP_NAME=$APP_NAME" >> $GITHUB_ENV
+
+      - name: Merge into universal2 .app
+        run: |
+          echo "Merging universal .app: $APP_NAME"
+
+          ARM_APP="dist/arm64/$APP_NAME"
+          X86_APP="dist/x86/$APP_NAME"
+          UNIVERSAL_APP="dist/universal/$APP_NAME"
+
+          # Copy arm64 app as base
+          mkdir -p dist/universal
+          cp -R "$ARM_APP" "$UNIVERSAL_APP"
+
+          echo "Merging executables in Contents/MacOS..."
+          for exe in "$ARM_APP/Contents/MacOS/"*; do
+            exe_name=$(basename "$exe")
+            echo "  -> $exe_name"
+            lipo -create \
+              "$ARM_APP/Contents/MacOS/$exe_name" \
+              "$X86_APP/Contents/MacOS/$exe_name" \
+              -output "$UNIVERSAL_APP/Contents/MacOS/$exe_name"
+          done
+
+          # Extract all architectures as sorted strings
+          get_archs() {
+            echo "$1" | grep -oE 'arm64|x86_64' | sort | tr '\n' ' '
+          }
+
+          # Helper: check if arch list1 contains all archs in list2
+          contains_all_archs() {
+            local container=($1)
+            local contained=($2)
+
+            for arch in "${contained[@]}"; do
+              local found=0
+              for c in "${container[@]}"; do
+                if [ "$arch" = "$c" ]; then
+                  found=1
+                  break
+                fi
+              done
+              if [ $found -eq 0 ]; then
+                return 1
+              fi
+            done
+            return 0
+          }
+
+          echo "Merging Mach-O (.so, .dylib, etc.) files in Frameworks and Resources..."
+          for section in Frameworks Resources; do
+            find "$ARM_APP/Contents/$section" -type f | while read -r arm_file; do
+              if ! file "$arm_file" | grep -q 'Mach-O'; then
+                continue
+              fi
+              rel_path="${arm_file#$ARM_APP/}"
+              x86_file="$X86_APP/$rel_path"
+              out_file="$UNIVERSAL_APP/$rel_path"
+
+              if [ -f "$x86_file" ]; then
+
+                arch_arm=$(lipo -info "$arm_file" 2>&1)
+                arch_x86=$(lipo -info "$x86_file" 2>&1)
+
+                archs_arm=$(get_archs "$arch_arm")
+                archs_x86=$(get_archs "$arch_x86")
+
+                is_arm_universal=false
+                is_x86_universal=false
+
+                if [[ "$archs_arm" == *"arm64"* && "$archs_arm" == *"x86_64"* ]]; then
+                  is_arm_universal=true
+                fi
+
+                if [[ "$archs_x86" == *"arm64"* && "$archs_x86" == *"x86_64"* ]]; then
+                  is_x86_universal=true
+                fi
+
+                if [ "$is_arm_universal" = true ] && [ "$is_x86_universal" = false ]; then
+                  echo "  -> $rel_path"
+                  echo "    arm_file is universal; copying arm_file."
+                  cp "$arm_file" "$out_file"
+                elif [ "$is_x86_universal" = true ] && [ "$is_arm_universal" = false ]; then
+                  echo "  -> $rel_path"
+                  echo "    x86_file is universal; copying x86_file."
+                  cp "$x86_file" "$out_file"
+                else
+                  # If both universal or both not universal, check if arch sets match exactly
+                  if contains_all_archs "$archs_arm" "$archs_x86" && contains_all_archs "$archs_x86" "$archs_arm"; then
+                    if [ "$is_arm_universal" = false ]; then
+                      echo "  -> $rel_path"
+                      echo "    Archs arm_file: $arch_arm"
+                      echo "    Archs x86_file: $arch_x86"
+                      echo "    Both files have identical architectures. Copying x86 file."
+                    cp "$x86_file" "$out_file"
+                    fi
+                  else
+                    lipo -create "$arm_file" "$x86_file" -output "$out_file"
+                  fi
+                fi
+              else
+                echo "    Warning: x86 file not found for $rel_path. Skipping."
+              fi
+            done
+          done
+
+
+          echo "✅ Universal app built at $UNIVERSAL_APP"
+
+      - name: Make main binary executable
+        run: chmod +x dist/universal/${{ env.APP_NAME }}/Contents/MacOS/PyMcaMain
+
+      - name: Run the app to check it launches
+        run: |
+          set -e
+
+          echo "Launching PyMcaMain..."
+          LOGFILE=$(mktemp)
+
+          # Start the app in the background
+          arch -arm64 dist/universal/${{ env.APP_NAME }}/Contents/MacOS/PyMcaMain > "$LOGFILE" 2>&1 &
+          APP_PID=$!
+
+          echo "App started with PID $APP_PID"
+
+          # Wait up to 60 seconds for it to crash or hang
+          for i in {1..60}; do
+            if ! ps -p $APP_PID > /dev/null; then
+              echo "App exited early. Checking exit code..."
+              wait $APP_PID || true
+              EXIT_CODE=$?
+              echo "Exit code: $EXIT_CODE"
+              echo "App output log:"
+              cat "$LOGFILE"
+              if [ $EXIT_CODE -ne 0 ]; then
+                echo "App exited with error code $EXIT_CODE"
+                exit $EXIT_CODE
+              else
+                echo "App exited cleanly before 2 minutes."
+                exit 0
+              fi
+            fi
+
+            if grep -qE 'ImportError|Traceback|ERROR:' "$LOGFILE"; then
+              echo "Detected error in application output:"
+              cat "$LOGFILE"
+              echo "Failing due to runtime error."
+              kill $APP_PID || true
+              wait $APP_PID || true
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          echo "App ran for 2 minutes without crashing. Killing it now..."
+          kill $APP_PID || true
+          wait $APP_PID || true
+          echo "App test complete."
+
+      - name: Run the app to check it launches
+        run: |
+          set -e
+
+          echo "Launching PyMcaMain..."
+          LOGFILE=$(mktemp)
+
+          # Start the app in the background
+          arch -x86_64 dist/universal/${{ env.APP_NAME }}/Contents/MacOS/PyMcaMain > "$LOGFILE" 2>&1 &
+          APP_PID=$!
+
+          echo "App started with PID $APP_PID"
+
+          # Wait up to 60 seconds for it to crash or hang
+          for i in {1..60}; do
+            if ! ps -p $APP_PID > /dev/null; then
+              echo "App exited early. Checking exit code..."
+              wait $APP_PID || true
+              EXIT_CODE=$?
+              echo "Exit code: $EXIT_CODE"
+              echo "App output log:"
+              cat "$LOGFILE"
+              if [ $EXIT_CODE -ne 0 ]; then
+                echo "App exited with error code $EXIT_CODE"
+                exit $EXIT_CODE
+              else
+                echo "App exited cleanly before 2 minutes."
+                exit 0
+              fi
+            fi
+
+            if grep -qE 'ImportError|Traceback|ERROR:' "$LOGFILE"; then
+              echo "Detected error in application output:"
+              cat "$LOGFILE"
+              echo "Failing due to runtime error."
+              kill $APP_PID || true
+              wait $APP_PID || true
+              exit 1
+            fi
+
+            sleep 1
+          done
+
+          echo "App ran for 2 minutes without crashing. Killing it now..."
+          kill $APP_PID || true
+          wait $APP_PID || true
+          echo "App test complete."
+
+      - name: Upload universal .app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-universal-app
+          path: dist/universal/*
+          retention-days: 3
+
+      - name: Set app base name (without .app)
+        run: |
+          APP_BASE_NAME="${APP_NAME%.app}"
+          echo "APP_BASE_NAME=$APP_BASE_NAME" >> $GITHUB_ENV
+
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Create fancy compressed DMG
+        run: |
+          set -e
+
+          DMG_NAME="${{ env.APP_BASE_NAME }}.dmg"
+          DMG_PATH="dist/${DMG_NAME}"
+          APP_PATH="dist/universal/${{ env.APP_NAME }}"
+
+          echo "Creating DMG at $DMG_PATH from $APP_PATH"
+
+          # Check that app exists
+          if [ ! -d "$APP_PATH" ]; then
+            echo "❌ ERROR: .app bundle not found at $APP_PATH"
+            ls -l dist/universal
+            exit 1
+          fi
+
+          xattr -cr "$APP_PATH"
+
+          # Invoke create-dmg with styling + compression
+          create-dmg \
+            --volname "${{ env.APP_BASE_NAME }}" \
+            --format UDBZ \
+            --filesystem HFS+ \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 128 \
+            --icon "${{ env.APP_NAME }}" 200 200 \
+            --app-drop-link 450 200 \
+            --skip-jenkins \
+            --sandbox-safe \
+            --hdiutil-verbose \
+            "$DMG_PATH" \
+            "$(dirname "$APP_PATH")" 
+
+          echo "✅ DMG created: $DMG_PATH"
+
+      - name: Upload .dmg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PyMca5-universal-dmg
+          path: dist/${{ env.APP_BASE_NAME }}.dmg
           retention-days: 1
-
-
           
