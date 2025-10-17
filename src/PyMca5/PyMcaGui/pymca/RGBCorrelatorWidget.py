@@ -1071,7 +1071,7 @@ class RGBCorrelatorWidget(qt.QWidget):
             msg.setIcon(qt.QMessageBox.Critical)
             msg.setText("Cannot read file %s (h5py is missing)" % filename)
             msg.exec()
-            return
+            return False
         # URI exists?
         if h5path:
             with HDF5Widget.h5open(filename) as hdf5File:
@@ -1083,16 +1083,11 @@ class RGBCorrelatorWidget(qt.QWidget):
                 parent=self, filename=filename, message="Select Group or Dataset"
             )
             if not tmp:
-                return
-            if isinstance(tmp, list):
-                for item in tmp:
-                    images_sizes_consistent = self._addHf5File(item)
-                    if not images_sizes_consistent:
-                        break
-            else:
-                tmp = tmp.split("::")
-                if len(tmp) == 2:
-                    h5path = tmp[1]
+                return False
+            for item in tmp:
+                images_sizes_consistent = self._addHf5File(item)
+                if not images_sizes_consistent:
+                    break
         if not h5path:
             return False
         # Add datasets from HDF5 path
