@@ -27,7 +27,7 @@ Release
 Main steps
 #######
 
-1) Push new version into ``src/PyMca5/__ini__.py``
+1) Update version in ``src/PyMca5/__init__.py``
 2) Wait until release action is finished
 3) Download and `test` Windwos and MacOS frozen binaries
 4) Update ``changelog.txt``
@@ -35,15 +35,15 @@ Main steps
 Start
 #######
 
-To start release procedure one need to push commit with modified version in src/PyMca5/__ini__.py. If release procedure was broken on `wheels` step before uploading to test-PyPI, one can push changes and restart release manually.
-The release include upload wheels to test-PyPI and PyPI as well as creating executable files (installer for Windows and universal dmg for MacOS).
+tart the release procedure by push a commit to the `master` branch with modified version in `src/PyMca5/__init__.py`. If the release pipeline fails during the `wheels` step before uploading to test-PyPI, changes can be commited and the release pipeline can be started manually.
+The release includes upload wheels to test-PyPI and PyPI as well as creating executable files (installer for Windows and universal dmg for MacOS).
 
-The action can take about an hour.
+The entire release pipeline can take about an hour.
 
 Test
 #######
 
-The CI run tests using wheels and only check that bundled versions do not crush on launch to avoid any incompatibility. That is why frozen (fat) binaries should be tested manually! using the following procedure:
+The CI run tests on wheels and only check that bundled versions do not crash on launch to avoid any incompatibility. That is why frozen (fat) binaries should be tested manually using the following procedure:
 
 `call/load 1D plugins` → `interactive console`
 
@@ -62,7 +62,7 @@ Please notice that tests `should` be performed on Windows, MacOS-arm64 and MacOS
 Changelog
 #########
 
-List of pull request will be generated in the release comments but not in ``changelog.txt``, which should be updated manually, since not all pull requests are described clearly when created.
+A list of pull requests will be generated in the release comments but not in ``changelog.txt``, which should be updated manually, since not all pull requests are described clearly when created.
 
 Availability
 ############
