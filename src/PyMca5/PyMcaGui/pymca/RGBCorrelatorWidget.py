@@ -225,14 +225,9 @@ class RGBCorrelatorWidget(qt.QWidget):
         self.currentNanColor = 'black'
         self.nanColorButton = qt.QToolButton(hbox)
         self.nanColorButton.setText('nan')
-        _the_style = self.nanColorButton.styleSheet()
-        _updated_style = self._updateStyle(_the_style, "color", "red")
-        _updated_style = self._updateStyle(_updated_style, "border-radius", "4px")
-        _updated_style = self._updateStyle(_updated_style, "padding", "3px 3px")
-        _updated_style = self._updateStyle(_updated_style, "border", "1px solid #ccc")
-        _updated_style = self._updateStyle(_updated_style, "background-color", "black")
-        self.nanColorButton.setStyleSheet(_updated_style)
-        self.nanColorButton.setToolTip("Black/White color of 'nan' pixels")
+        self.nanColorButton.setToolTip("Toggle black/white color for 'nan' pixels")
+        self.toggleNanColor(initial=True)
+
         if TOMOGUI_FLAG:
             self.tomographyButton = qt.QToolButton(hbox)
             tomoguiIcon = tomogui.gui.utils.icons.getQIcon("tomogui")
@@ -350,7 +345,7 @@ class RGBCorrelatorWidget(qt.QWidget):
 
         self.profileButton.clicked.connect(self.profileSelectedImages)
 
-        self.nanColorButton.clicked.connect(self.nanBlackWhite)
+        self.nanColorButton.clicked.connect(self.toggleNanColor)
 
         self._calculationMenu = None
         self.scatterPlotWidget = None
@@ -372,16 +367,28 @@ class RGBCorrelatorWidget(qt.QWidget):
             _logger.debug("Using deprecated signal")
             self.buttonGroup.buttonClicked[int].connect(self._colormapTypeChange)
 
-    def _updateStyle(self, style_str, prop, val):
-        pattern = rf"{prop}:\s*[^;]+;"
-        if re.search(pattern, style_str):
-            # Replace existing property
-            return re.sub(pattern, f"{prop}: {val};", style_str)
-        else:
-            # Append property if not found
-            if style_str and not style_str.endswith(';'):
-                style_str += ';'
-            return style_str + f" {prop}: {val};"
+    def toggleNanColor(self, initial=False):
+        self.currentNanColor = 'white' if self.currentNanColor == 'black' else 'black'
+
+        bg = self.currentNanColor
+        text = 'red' if bg == 'black' else 'black'
+        hover = '#333' if bg == 'black' else '#ddd'
+
+        self.nanColorButton.setStyleSheet(f"""
+            QToolButton {{
+                background-color: {bg};
+                color: {text};
+                border-radius: 4px;
+                padding: 3px;
+                border: 1px solid #ccc;
+            }}
+            QToolButton:hover {{
+                background-color: {hover};
+            }}
+        """)
+        if not initial:
+            if self.__imageLength is not None:
+                self.update()
 
     def _showCalculationDialog(self):
         if (not NNMA) and (not PCA) and (not KMEANS):
@@ -1607,20 +1614,6 @@ class RGBCorrelatorWidget(qt.QWidget):
             os.remove(filename)
         pilImage.save(filename)
     """
-
-    def nanBlackWhite(self):
-        if self.currentNanColor == 'white':
-            self.currentNanColor = 'black'
-            _the_style = self.nanColorButton.styleSheet()
-            _updated_style = self._updateStyle(_the_style, "background-color", "black")
-            self.nanColorButton.setStyleSheet(_updated_style)
-        else:
-            self.currentNanColor = 'white'
-            _the_style = self.nanColorButton.styleSheet()
-            _updated_style = self._updateStyle(_the_style, "background-color", "white")
-            self.nanColorButton.setStyleSheet(_updated_style)
-        if self.__imageLength is not None:
-            self.update()
 
     def profileSelectedImages(self):
         itemList = self.tableWidget.selectedItems()
