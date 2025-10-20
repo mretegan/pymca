@@ -1060,77 +1060,156 @@ class RGBCorrelatorWidget(qt.QWidget):
                 continue
             self.addImage(dataObject.data, os.path.basename(filename) + " " + label)
 
-    def _addHf5File(self, uri, ignoreStDev=True):
-        images_sizes_consistent = True
+    # def _addHf5File(self, uri, ignoreStDev=True):
+    #     images_sizes_consistent = True
+    #     tmp = uri.split("::")
+    #     if len(tmp) == 1:
+    #         tmp = uri, None
+    #     filename, h5path = tmp
+    #     if h5py is None:
+    #         msg = qt.QMessageBox(self)
+    #         msg.setIcon(qt.QMessageBox.Critical)
+    #         msg.setText("Cannot read file %s (h5py is missing)" % filename)
+    #         msg.exec()
+    #         return False
+    #     # URI exists?
+    #     if h5path:
+    #         with HDF5Widget.h5open(filename) as hdf5File:
+    #             if not h5path in hdf5File:
+    #                 h5path = None
+    #     # Prompt for missing HDF5 path
+    #     if not h5path:
+    #         tmp = HDF5Widget.getUris(
+    #             parent=self, filename=filename, message="Select Group or Dataset"
+    #         )
+    #         if not tmp:
+    #             return False
+    #         for item in tmp:
+    #             images_sizes_consistent = self._addHf5File(item)
+    #             if not images_sizes_consistent:
+    #                 break
+    #     if not h5path:
+    #         return False
+    #     # Add datasets from HDF5 path
+    #     with HDF5Widget.h5open(filename) as hdf5File:
+    #         if self.__imageLength:
+    #             # Select datasets with the same number of elements
+    #             def match(dset):
+    #                 return dset.size == self.__imageLength
+    #
+    #         else:
+    #             # Select only 1D or 2D datasets
+    #             def match(dset):
+    #                 return dset.ndim == 1 or dset.ndim == 2
+    #
+    #         # If `h5path` is an instance of NXdata, only the signals
+    #         # (including auxilary signals) are considered for `match`.
+    #         datasets = NexusUtils.selectDatasets(hdf5File[h5path], match=match)
+    #         if not datasets:
+    #             msg = qt.QMessageBox(self)
+    #             msg.setIcon(qt.QMessageBox.Critical)
+    #             msg.setText(
+    #                 "No (valid) datasets were found in '{}::{}'".format(
+    #                     filename, h5path
+    #                 )
+    #             )
+    #             msg.exec()
+    #             images_sizes_consistent = False
+    #             self._addHf5File(filename, ignoreStDev=ignoreStDev)
+    #         elif len({dset.size for dset in datasets}) > 1:
+    #             msg = qt.QMessageBox(self)
+    #             msg.setIcon(qt.QMessageBox.Critical)
+    #             msg.setText(
+    #                 "'{}::{}' contains datasets with different sizes. Select datasets separately.".format(
+    #                     filename, h5path
+    #                 )
+    #             )
+    #             msg.exec()
+    #             self._addHf5File(filename, ignoreStDev=ignoreStDev)
+    #         else:
+    #             for dset in datasets:
+    #                 label = "/".join(dset.name.split("/")[-2:])
+    #                 self.addImage(dset[()], label)
+    #     return images_sizes_consistent
+
+    def _addHf5File(self, uri: str, ignoreStDev: bool = True) -> bool:
+
+        # check dependencies
+        if not self._checkDependencies(uri):
+            return False
+
+        # read uri
         tmp = uri.split("::")
         if len(tmp) == 1:
             tmp = uri, None
         filename, h5path = tmp
+
+        # search for paths in selected items
+        h5path = self._validateOrSelectH5Path(filename, h5path, ignoreStDev)
+        if not h5path:
+            return False
+
+        return self._loadAndAddDatasets(filename, h5path)
+
+    def _checkDependencies(self, uri: str) -> bool:
         if h5py is None:
-            msg = qt.QMessageBox(self)
-            msg.setIcon(qt.QMessageBox.Critical)
-            msg.setText("Cannot read file %s (h5py is missing)" % filename)
-            msg.exec()
-            return False
-        # URI exists?
-        if h5path:
-            with HDF5Widget.h5open(filename) as hdf5File:
-                if not h5path in hdf5File:
-                    h5path = None
-        # Prompt for missing HDF5 path
-        if not h5path:
-            tmp = HDF5Widget.getUris(
-                parent=self, filename=filename, message="Select Group or Dataset"
+            qt.QMessageBox.critical(
+                self,
+                "Missing dependency",
+                f"Cannot read file {uri} (h5py is missing)."
             )
-            if not tmp:
-                return False
-            for item in tmp:
-                images_sizes_consistent = self._addHf5File(item)
-                if not images_sizes_consistent:
-                    break
-        if not h5path:
             return False
-        # Add datasets from HDF5 path
-        with HDF5Widget.h5open(filename) as hdf5File:
-            if self.__imageLength:
-                # Select datasets with the same number of elements
-                def match(dset):
+        return True
+
+    def _validateOrSelectH5Path(self, filename: str, h5path: str | None, ignoreStDev: bool = True):
+
+        if h5path:
+            with HDF5Widget.h5open(filename) as hdf5_file:
+                if h5path not in hdf5_file:
+                    h5path = None
+
+        if h5path:
+            return h5path
+
+        selected_uris = HDF5Widget.getUris(
+            parent=self,
+            filename=filename,
+            message="Select Group or Dataset"
+        )
+        if not selected_uris:
+            return None
+
+        # Process each selected URI recursively
+        for selected_uri in selected_uris:
+            if not self._addHf5File(selected_uri, ignoreStDev=ignoreStDev):
+                return None
+        return None
+
+    def _loadAndAddDatasets(self, filename: str, h5path: str, ignoreStDev: bool = True) -> bool:
+        with HDF5Widget.h5open(filename) as hdf5_file:
+            def matches_expected_shape(dset) -> bool:
+                if self.__imageLength:
                     return dset.size == self.__imageLength
+                return dset.ndim in (1, 2)
 
-            else:
-                # Select only 1D or 2D datasets
-                def match(dset):
-                    return dset.ndim == 1 or dset.ndim == 2
+            datasets = NexusUtils.selectDatasets(
+                hdf5_file[h5path],
+                match=matches_expected_shape
+            )
 
-            # If `h5path` is an instance of NXdata, only the signals
-            # (including auxilary signals) are considered for `match`.
-            datasets = NexusUtils.selectDatasets(hdf5File[h5path], match=match)
             if not datasets:
-                msg = qt.QMessageBox(self)
-                msg.setIcon(qt.QMessageBox.Critical)
-                msg.setText(
-                    "No (valid) datasets were found in '{}::{}'".format(
-                        filename, h5path
-                    )
+                qt.QMessageBox.critical(
+                    self,
+                    "No valid datasets",
+                    f"No valid or consistent datasets were found in '{filename}::{h5path}'."
                 )
-                msg.exec()
-                images_sizes_consistent = False
-                self._addHf5File(filename, ignoreStDev=ignoreStDev)
-            elif len({dset.size for dset in datasets}) > 1:
-                msg = qt.QMessageBox(self)
-                msg.setIcon(qt.QMessageBox.Critical)
-                msg.setText(
-                    "'{}::{}' contains datasets with different sizes. Select datasets separately.".format(
-                        filename, h5path
-                    )
-                )
-                msg.exec()
-                self._addHf5File(filename, ignoreStDev=ignoreStDev)
-            else:
-                for dset in datasets:
-                    label = "/".join(dset.name.split("/")[-2:])
-                    self.addImage(dset[()], label)
-        return images_sizes_consistent
+                return self._addHf5File(filename, ignoreStDev=ignoreStDev)
+
+            for dset in datasets:
+                label = "/".join(dset.name.split("/")[-2:])
+                self.addImage(dset[()], label)
+
+        return True
 
     def _addQImageReadable(self, filename, ignoreStDev=True):
         if ignoreStDev and self._ignoreStDevFile(filename):
