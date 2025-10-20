@@ -1,4 +1,4 @@
-name: Create Tag and Release from TestPyPI Version
+name: _Create Tag and Release from TestPyPI Version
 
 on:
   workflow_call:

@@ -1,4 +1,4 @@
-name: Windows (cx_freeze - installer)
+name: _Windows (cx_freeze - installer)
 
 on:
   workflow_dispatch:

@@ -1,4 +1,4 @@
-name: Check version
+name: _Check version
 
 on:
   workflow_dispatch:

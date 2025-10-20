@@ -1,4 +1,4 @@
-name: Create and upload wheels
+name: _Create and upload wheels
 
 on:
   workflow_dispatch:

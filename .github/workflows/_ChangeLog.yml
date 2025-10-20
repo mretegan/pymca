@@ -1,4 +1,4 @@
-name: Update Changelog on Tag
+name: _Update Changelog on Tag
 
 on:
   workflow_dispatch:
