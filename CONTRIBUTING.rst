@@ -22,7 +22,52 @@ or using the module directly
 
     python -m PyMca5.PyMcaGui.pymca.PyMcaMain
 
-Deployment
+Release
 ----------
+Main steps
+#######
 
-TODO
+1) Update version in ``src/PyMca5/__init__.py``
+2) Wait until release action is finished
+3) Download and `test` Windwos and MacOS frozen binaries
+4) Update ``changelog.txt``
+
+Start
+#######
+
+tart the release procedure by push a commit to the `master` branch with modified version in `src/PyMca5/__init__.py`. If the release pipeline fails during the `wheels` step before uploading to test-PyPI, changes can be commited and the release pipeline can be started manually.
+The release includes upload wheels to test-PyPI and PyPI as well as creating executable files (installer for Windows and universal dmg for MacOS).
+
+The entire release pipeline can take about an hour.
+
+Test
+#######
+
+The CI run tests on wheels and only check that bundled versions do not crash on launch to avoid any incompatibility. That is why frozen (fat) binaries should be tested manually using the following procedure:
+
+`call/load 1D plugins` → `interactive console`
+
+.. image:: NavigationImages/InteractiveConsole.png
+   :alt: interactive_console
+
+.. code:: bash
+
+   from PyMca5.tests import TestAll
+   TestAll.main()
+
+Few tests will be skipped, and none should fail.
+
+Please notice that tests `should` be performed on Windows, MacOS-arm64 and MacOS-x86.
+
+Changelog
+#########
+
+A list of pull requests will be generated in the release comments but not in ``changelog.txt``, which should be updated manually, since not all pull requests are described clearly when created.
+
+Availability
+############
+New versions of PyMca5 will be distributed via github releases.
+
+Older version (<5.9.5) are available at https://sourceforge.net/projects/pymca/files/pymca/PyMca5.9.4/
+
+

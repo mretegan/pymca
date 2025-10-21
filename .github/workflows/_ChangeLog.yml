@@ -1,0 +1,108 @@
+name: _Update Changelog on Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to update changelog for (e.g., v1.2.3)'
+        required: true
+        type: string
+  workflow_call:
+
+jobs:
+  changelog:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Determine current tag
+        id: current_tag
+        run: |
+          if [ -n "${{ github.event.inputs.tag }}" ]; then
+            echo "Using input tag: ${{ github.event.inputs.tag }}"
+            echo "tag=${{ github.event.inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            PACKAGE="PyMca5"
+            META=$(curl -s https://test.pypi.org/pypi/$PACKAGE/json)
+            VERSION=$(echo "$META" | jq -r '.info.version')
+            if [ -z "$VERSION" ] || [ "$VERSION" = "null" ]; then
+              echo "❌ Could not fetch version from TestPyPI"
+              exit 1
+            fi
+            TAG="v${VERSION}"
+            echo "Fetched version: $VERSION, using tag: $TAG"
+            echo "tag=$TAG" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get current release info
+        id: current_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG=${{ steps.current_tag.outputs.tag }}
+          RELEASE=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "${{ github.api_url }}/repos/${{ github.repository }}/releases/tags/${TAG}")
+
+          if [ "$(echo "$RELEASE" | jq -r '.id')" = "null" ]; then
+            echo "❌ Release for tag $TAG not found"
+            exit 1
+          fi
+
+          echo "release_id=$(echo "$RELEASE" | jq -r '.id')" >> $GITHUB_OUTPUT
+          echo "published_at=$(echo "$RELEASE" | jq -r '.published_at')" >> $GITHUB_OUTPUT
+
+      - name: Get previous release info
+        id: previous_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get all releases sorted descending by published date
+          ALL_RELEASES=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "${{ github.api_url }}/repos/${{ github.repository }}/releases?per_page=100")
+
+          # Find the one that comes before the current release
+          PREV_RELEASE=$(echo "$ALL_RELEASES" | jq -r --arg id "${{ steps.current_release.outputs.release_id }}" '
+            . | sort_by(.published_at) | reverse | map(select(.id != ($id | tonumber))) | .[0]
+          ')
+
+          echo "prev_tag=$(echo "$PREV_RELEASE" | jq -r '.tag_name')" >> $GITHUB_OUTPUT
+          echo "published_at=$(echo "$PREV_RELEASE" | jq -r '.published_at')" >> $GITHUB_OUTPUT
+
+      - name: Get merged PRs since previous release date
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SINCE=${{ steps.previous_release.outputs.published_at }}
+          echo "Fetching PRs merged after $SINCE"
+
+          QUERY="repo:${{ github.repository }} is:pr is:merged merged:>${SINCE}"
+          curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "${{ github.api_url }}/search/issues?q=$(echo "$QUERY" | jq -s -R -r @uri)" > prs.json
+
+      - name: Generate changelog notes
+        run: |
+          if jq -e '.items | type == "array" and length > 0' prs.json > /dev/null; then
+            jq -r '.items[] | "- " + (.title | gsub("^\\[(?<tag>[^\\]]+)\\]\\s*(?<rest>.+)"; "\(.tag). \(.rest)")) + " (#" + (.number|tostring) + ")"' prs.json >> changelog_notes.txt
+          else
+            echo "No merged PRs found since previous release." >> changelog_notes.txt
+          fi
+
+          echo "--- Generated changelog ---"
+          cat changelog_notes.txt
+
+      - name: Update GitHub release notes via API
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          RELEASE_ID=${{ steps.current_release.outputs.release_id }}
+          BODY=$(jq -Rs . changelog_notes.txt)
+
+          curl -s -X PATCH -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"body\": $BODY}" \
+            "${{ github.api_url }}/repos/${{ github.repository }}/releases/${RELEASE_ID}"
+          

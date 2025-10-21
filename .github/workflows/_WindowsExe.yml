@@ -1,0 +1,155 @@
+name: _Windows (pyinstaller - simple executable)
+
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+env:
+  PROJECT: PyMca5
+  PROJECT_LOWER: pymca5
+
+jobs:
+# Fat binaries
+  windows_pyinstaller_python39: #also works with cp311 and pyside6 as well as oldest cp39 pyqt5
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: actions/setup-python@v2
+        with:
+          python-version: "3.13" #was working with 3.11 and Pyside6
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install qtconsole==5.6.1
+          pip install matplotlib==3.10.5
+          pip install lief==0.16.6
+          pip install --pre --extra-index-url https://test.pypi.org/simple/ --trusted-host test.pypi.org --only-binary PyMca5 PyMca5
+          pip install Cython
+          pip install numpy==2.2.6 
+          pip install Pyside6==6.9.1
+          pip install h5py
+          pip install fisx
+          pip install hdf5plugin
+          pip install silx==2.2.2
+          pip install PyOpenGL
+          pip install PyInstaller
+          pip install git+https://github.com/vasole/bcflight.git
+          pip install ipywidgets
+
+
+      - name: Install NSIS
+        run: choco install nsis -y
+
+      - name: Build with PyInstaller
+        run:
+          python build-pyinstaller_github.py
+
+      - name: Run the app to check it launches (Windows PowerShell)
+        shell: pwsh
+        run: |      
+          # Find the exe (naming have version)
+          $appPath = Get-ChildItem -Path "dist" -Filter "PyMcaMain.exe" -Recurse | Select-Object -First 1 -ExpandProperty FullName
+          if ($null -eq $appPath) {
+              Write-Error "Executable not found."
+              exit 1
+          }
+          Write-Host "Found executable at $appPath"
+          
+          # Create a temporary log file for stdout and stderr
+          $logFile = [System.IO.Path]::GetTempFileName()
+          
+          # Start the app redirecting stdout and stderr to the log file
+          $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+          $startInfo.FileName = $appPath
+          $startInfo.RedirectStandardOutput = $true
+          $startInfo.RedirectStandardError = $true
+          $startInfo.UseShellExecute = $false
+          $startInfo.CreateNoWindow = $true
+          
+          $process = New-Object System.Diagnostics.Process
+          $process.StartInfo = $startInfo
+          $process.Start() | Out-Null
+          
+          # Async read output and error streams into the log file
+          $outputWriter = [System.IO.StreamWriter]::new($logFile, $true)
+          $process.BeginOutputReadLine()
+          $process.BeginErrorReadLine()
+          
+          # Capture output events
+          $process.add_OutputDataReceived({ 
+              param($sender, $args) 
+              if ($args.Data) {
+                  $outputWriter.WriteLine($args.Data)
+                  $outputWriter.Flush()
+              }
+          })
+          $process.add_ErrorDataReceived({ 
+              param($sender, $args) 
+              if ($args.Data) {
+                  $outputWriter.WriteLine($args.Data)
+                  $outputWriter.Flush()
+              }
+          })
+          
+          Write-Host "App started with PID $($process.Id)"
+          $timeoutSeconds = 120
+          $stopWatch = [System.Diagnostics.Stopwatch]::StartNew()
+          
+          while (-not $process.HasExited -and $stopWatch.Elapsed.TotalSeconds -lt $timeoutSeconds) {
+              Start-Sleep -Seconds 1
+          
+              # Check log file for error patterns
+              $output = Get-Content $logFile -Raw -ErrorAction SilentlyContinue
+              if ($output -match 'ImportError|Traceback|ERROR:') {
+                  Write-Error "Detected runtime error in application output:"
+                  Write-Error $output
+          
+                  try {
+                      $process.Kill()
+                      $process.WaitForExit()
+                  } catch {
+                      Write-Warning "Failed to kill the process: $_"
+                  }
+          
+                  $outputWriter.Close()
+                  exit 1
+              }
+          }
+          
+          # Close output writer cleanly
+          $outputWriter.Close()
+      
+          if (-not $process.HasExited) {
+            Write-Host "App ran for $timeoutSeconds seconds without crashing. Killing it now..."
+            try {
+              $process.Kill()
+              $process.WaitForExit()
+            }
+            catch {
+              Write-Warning "Failed to kill the process: $_"
+            }
+            Write-Host "App test complete."
+            exit 0
+          }
+          else {
+            # Process exited early — check exit code
+            $exitCode = $process.ExitCode
+            if ($exitCode -ne 0) {
+              Write-Error "App exited with error code $exitCode"
+              exit $exitCode
+            }
+            else {
+              Write-Error "App exited cleanly before $timeoutSeconds seconds, marking as failure."
+              exit 1
+            }
+          }
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-executable-pyinstaller
+          path: dist/PyMca*/**
+          retention-days: 1
