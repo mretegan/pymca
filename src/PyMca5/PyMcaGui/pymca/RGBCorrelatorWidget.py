@@ -1,5 +1,5 @@
 # /*##########################################################################
-# Copyright (C) 2004-2023 European Synchrotron Radiation Facility
+# Copyright (C) 2004-2025 European Synchrotron Radiation Facility
 #
 # This file is part of the PyMca X-ray Fluorescence Toolkit developed at
 # the ESRF.
@@ -222,6 +222,12 @@ class RGBCorrelatorWidget(qt.QWidget):
         self.profileButton = qt.QToolButton(hbox)
         self.profileButton.setIcon(qt.QIcon(qt.QPixmap(IconDict["diagonal"])))
         self.profileButton.setToolTip("Show selected images profile")
+        self.currentNanColor = 'black'
+        self.nanColorButton = qt.QToolButton(hbox)
+        self.nanColorButton.setText('nan')
+        self.nanColorButton.setToolTip("Toggle black/white color for 'nan' pixels")
+        self.toggleNanColor(initial=True)
+
         if TOMOGUI_FLAG:
             self.tomographyButton = qt.QToolButton(hbox)
             tomoguiIcon = tomogui.gui.utils.icons.getQIcon("tomogui")
@@ -247,6 +253,7 @@ class RGBCorrelatorWidget(qt.QWidget):
         hbox.mainLayout.addWidget(self.toggleSlidersButton)
         hbox.mainLayout.addWidget(self.calculationButton)
         hbox.mainLayout.addWidget(self.profileButton)
+        hbox.mainLayout.addWidget(self.nanColorButton)
         if TOMOGUI_FLAG:
             hbox.mainLayout.addWidget(self.tomographyButton)
         hbox.mainLayout.addWidget(qt.HorizontalSpacer(self.toolBar))
@@ -338,6 +345,8 @@ class RGBCorrelatorWidget(qt.QWidget):
 
         self.profileButton.clicked.connect(self.profileSelectedImages)
 
+        self.nanColorButton.clicked.connect(self.toggleNanColor)
+
         self._calculationMenu = None
         self.scatterPlotWidget = None
         self.pcaDialog = None
@@ -357,6 +366,29 @@ class RGBCorrelatorWidget(qt.QWidget):
             # deprecated
             _logger.debug("Using deprecated signal")
             self.buttonGroup.buttonClicked[int].connect(self._colormapTypeChange)
+
+    def toggleNanColor(self, initial=False):
+        self.currentNanColor = 'white' if self.currentNanColor == 'black' else 'black'
+
+        bg = self.currentNanColor
+        text = 'red' if bg == 'black' else 'black'
+        hover = '#333' if bg == 'black' else '#ddd'
+
+        self.nanColorButton.setStyleSheet(f"""
+            QToolButton {{
+                background-color: {bg};
+                color: {text};
+                border-radius: 4px;
+                padding: 3px;
+                border: 1px solid #ccc;
+            }}
+            QToolButton:hover {{
+                background-color: {hover};
+            }}
+        """)
+        if not initial:
+            if self.__imageLength is not None:
+                self.update()
 
     def _showCalculationDialog(self):
         if (not NNMA) and (not PCA) and (not KMEANS):
@@ -504,6 +536,35 @@ class RGBCorrelatorWidget(qt.QWidget):
             colorlist = color * 1
         ddict = {}
         ddict["event"] = "updated"
+
+        # whitening the nan pixels
+        if (
+                (
+            bool(numpy.isnan(self.__redImageData).any())
+            or bool(numpy.isnan(self.__greenImageData).any())
+            or bool(numpy.isnan(self.__blueImageData).any())
+                )
+            and self.currentNanColor == 'white'
+        ):
+            colorlist = ["r", "g", "b"]
+            nan_indices = numpy.where(numpy.isnan(self.__redImageData))
+            redImageData = numpy.copy(self.__redImageData)
+            greenImageData = numpy.copy(self.__greenImageData)
+            blueImageData = numpy.copy(self.__blueImageData)
+            redImageData[nan_indices[0], nan_indices[1]] = (
+                max(numpy.nanmax(self.__redImageData), 1) + 255
+            )
+            greenImageData[nan_indices[0], nan_indices[1]] = (
+                max(numpy.nanmax(self.__greenImageData), 1) + 255
+            )
+            blueImageData[nan_indices[0], nan_indices[1]] = (
+                max(numpy.nanmax(self.__blueImageData), 1) + 255
+            )
+        else:
+            redImageData = self.__redImageData
+            greenImageData = self.__greenImageData
+            blueImageData = self.__blueImageData
+
         if "r" in colorlist:
             # get slider
             label = self.__redLabel
@@ -518,13 +579,13 @@ class RGBCorrelatorWidget(qt.QWidget):
                 valmax = valmin + delta * self.__redMax
             if USE_STRING:
                 red, size, minmax = self.getColorImage(
-                    self.__redImageData, spslut.RED, valmin, valmax, 0
+                    redImageData, spslut.RED, valmin, valmax, 0
                 )
                 self.__redImage = numpy.array(red).astype(numpy.uint8)
                 ddict["red"] = red
             else:
                 red, size, minmax = self.getColorImage(
-                    self.__redImageData, spslut.RED, valmin, valmax, 1
+                    redImageData, spslut.RED, valmin, valmax, 1
                 )
                 self.__redImage = red
                 ddict["red"] = red.tobytes()
@@ -544,13 +605,13 @@ class RGBCorrelatorWidget(qt.QWidget):
                 valmax = valmin + delta * self.__greenMax
             if USE_STRING:
                 green, size, minmax = self.getColorImage(
-                    self.__greenImageData, spslut.GREEN, valmin, valmax
+                    greenImageData, spslut.GREEN, valmin, valmax
                 )
                 self.__greenImage = numpy.array(green).astype(numpy.uint8)
                 ddict["green"] = green
             else:
                 green, size, minmax = self.getColorImage(
-                    self.__greenImageData, spslut.GREEN, valmin, valmax, 1
+                    greenImageData, spslut.GREEN, valmin, valmax, 1
                 )
                 self.__greenImage = green
                 ddict["green"] = green.tobytes()
@@ -571,17 +632,18 @@ class RGBCorrelatorWidget(qt.QWidget):
                 valmax = valmin + delta * self.__blueMax
             if USE_STRING:
                 blue, size, minmax = self.getColorImage(
-                    self.__blueImageData, spslut.BLUE, valmin, valmax
+                    blueImageData, spslut.BLUE, valmin, valmax
                 )
                 self.__blueImage = numpy.array(blue).astype(numpy.uint8)
                 ddict["blue"] = blue
             else:
                 blue, size, minmax = self.getColorImage(
-                    self.__blueImageData, spslut.BLUE, valmin, valmax, 1
+                    blueImageData, spslut.BLUE, valmin, valmax, 1
                 )
                 self.__blueImage = blue
                 ddict["blue"] = blue.tobytes()
             ddict["size"] = size
+
         image = self.__redImage + self.__greenImage + self.__blueImage
         ddict["image"] = image
         self.sigRGBCorrelatorWidgetSignal.emit(ddict)
