@@ -34,6 +34,7 @@ import traceback
 import logging
 import warnings
 import re
+from typing import Optional
 from . import RGBCorrelatorSlider
 from . import RGBCorrelatorTable
 from PyMca5.PyMcaGui.pymca import RGBImageCalculator
@@ -1085,7 +1086,7 @@ class RGBCorrelatorWidget(qt.QWidget):
             return False
         return True
 
-    def _validateOrSelectH5Path(self, filename: str, h5path: str | None, ignoreStDev: bool = True):
+    def _validateOrSelectH5Path(self, filename: str, h5path: Optional[str], ignoreStDev: bool = True):
 
         if h5path:
             with HDF5Widget.h5open(filename) as hdf5_file:
