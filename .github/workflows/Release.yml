@@ -88,6 +88,8 @@ jobs:
   upload-pypi:
     needs: tag-release
     uses: ./.github/workflows/_PyPI.yml
+    secrets:
+      PYPI_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
 
 
 
