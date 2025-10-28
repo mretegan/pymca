@@ -36,12 +36,23 @@ jobs:
           pip install silx==2.2.2
           pip install PyOpenGL
           pip install PyInstaller
-          pip install git+https://github.com/vasole/bcflight.git
+          pip install --no-build-isolation git+https://github.com/vasole/bcflight.git
           pip install ipywidgets
 
 
       - name: Install NSIS
         run: choco install nsis -y
+
+      - name: Add NSIS to PATH
+        shell: pwsh
+        run: |
+          echo "C:/Program Files (x86)/NSIS" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Check makensis availability
+        shell: pwsh
+        run: |
+          where makensis
+          makensis /VERSION
 
       - name: Build with PyInstaller
         run:
