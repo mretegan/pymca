@@ -414,7 +414,7 @@ jobs:
         run: |
           # Copy the application to location expected by the packaging scripts.
           mkdir -p package/pyinstaller/dist
-          cp -a dist/universal2/$APP_NAME package/pyinstaller/dist/PyMca5.app
+          cp -a dist/universal2/$APP_NAME package/pyinstaller/dist/PyMca.app
           cd package/pyinstaller
           # Remove unnecessary packages.
           rm -fr dist/PyMca5.app/Contents/Frameworks/pkg_resources/tests
@@ -423,7 +423,7 @@ jobs:
           ./create-dmg.sh
           ./notarize.sh
           VERSION=${APP_NAME#PyMca}; VERSION=${VERSION%.app}
-          mv artifacts/PyMca5.dmg ../../dist/PyMca5-${VERSION}-macos-universal2.dmg
+          mv artifacts/PyMca5.dmg ../../dist/PyMca${VERSION}.dmg
           cd ../..
           rm -fr package/pyinstaller/dist
           rm -fr package/pyinstaller/artifacts
