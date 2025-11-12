@@ -18,7 +18,7 @@ if [[ -z "${APPLE_ID}" || -z "${APPLE_TEAM_ID}" || -z "${APPLICATION_SPECIFIC_PA
 fi
 
 log "Setting the required environment variables."
-APP_NAME="PyMca5"
+APP_NAME="PyMca"
 ROOT="${PWD}"
 APP_DMG="${ROOT}/artifacts/${APP_NAME}.dmg"
 

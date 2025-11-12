@@ -18,7 +18,7 @@ if [[ -z "${APPLE_TEAM_ID}" || -z "${KEYCHAIN_PASSWORD}" || -z "${CERTIFICATE_BA
 fi
 
 log "Setting the required environment variables."
-APP_NAME="PyMca5"
+APP_NAME="PyMca"
 ROOT="${PWD}"
 APP_PATH="${ROOT}/dist/${APP_NAME}.app"
 KEYCHAIN_PATH="${ROOT}/notarize.keychain-db"

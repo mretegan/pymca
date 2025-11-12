@@ -12,7 +12,7 @@ log() {
 }
 
 log "Setting environment variables."
-APP_NAME="PyMca5"
+APP_NAME="PyMca"
 ROOT="${PWD}"
 APP="${ROOT}/dist/${APP_NAME}.app"
 RESOURCES="${ROOT}" # The path to resources (volume icon, background, ...)."
