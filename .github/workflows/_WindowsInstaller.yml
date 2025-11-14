@@ -21,6 +21,12 @@ jobs:
         with:
           python-version: "3.13" #was working with cp3.9 and pyqt5 numpy==1.24.4 cx_freeze==6.14.7 qtconsole==5.4.1 lief==0.12.3 matplotlib==3.5.3
 
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-latest-wheels
+          path: wheels
+
       - name: Install dependencies
         run: |          
           
@@ -29,7 +35,7 @@ jobs:
           pip install matplotlib==3.10.5
           pip install lief==0.16.6
           pip install cx_Freeze==8.3.0
-          pip install --pre --extra-index-url https://test.pypi.org/simple/ --trusted-host test.pypi.org --only-binary PyMca5 PyMca5
+          pip install wheels/
           pip install Cython
           pip install numpy==2.2.6 
           pip install Pyside6==6.9.1
@@ -79,22 +85,22 @@ jobs:
           # Run installer silently (adjust /S as needed)
           Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait
 
-      - name: Run the installed app to check it launches
+      - name: Run PyMcaMain with tests (Windows)
         shell: pwsh
+        env:
+          PYMCA_TEST_MODE: 1
         run: |
-          # Define expected install path
+          # Define expected install paths
           $basePaths = @(
               "${env:ProgramFiles}",
               "${env:ProgramFiles(x86)}"
           )
           $exeName = "PyMcaMain.exe"
           $appPath = $null
-          
-          #find exe (naming of folder with version)
+      
+          # Find the exe in folders starting with PyMca*
           foreach ($base in $basePaths) {
-              # Only search inside folders starting with PyMca*
               $candidateDirs = Get-ChildItem -Path $base -Directory -Filter "PyMca*" -ErrorAction SilentlyContinue
-          
               foreach ($dir in $candidateDirs) {
                   $possiblePath = Join-Path $dir.FullName $exeName
                   if (Test-Path $possiblePath) {
@@ -102,53 +108,18 @@ jobs:
                       break
                   }
               }
-          
               if ($appPath) { break }
           }
+      
           if (-not $appPath) {
               Write-Error "Executable '$exeName' not found in Program Files."
               exit 1
           }
+      
           Write-Host "Found executable at $appPath"
           
-          if (-not (Test-Path $appPath)) {
-            Write-Error "App was not installed to expected path: $appPath"
-            exit 1
-          }
-      
-          Write-Host "Launching installed PyMcaMain..."
-      
-          # Launch app and monitor
-          $process = Start-Process -FilePath $appPath -PassThru
-          Write-Host "App started with PID $($process.Id)"
-      
-          $timeoutSeconds = 120
-          $stopWatch = [System.Diagnostics.Stopwatch]::StartNew()
-      
-          while (-not $process.HasExited -and $stopWatch.Elapsed.TotalSeconds -lt $timeoutSeconds) {
-            Start-Sleep -Seconds 1
-          }
-      
-          if (-not $process.HasExited) {
-            Write-Host "App ran for $timeoutSeconds seconds without crashing. Killing it now..."
-            try {
-              $process.Kill()
-              $process.WaitForExit()
-            } catch {
-              Write-Warning "Failed to kill the process: $_"
-            }
-            Write-Host "App test complete."
-            exit 0
-          } else {
-            $exitCode = $process.ExitCode
-            if ($exitCode -ne 0) {
-              Write-Error "App exited with error code $exitCode"
-              exit $exitCode
-            } else {
-              Write-Error "App exited cleanly before $timeoutSeconds seconds, marking as failure."
-              exit 1
-            }
-          }
+          & $appPath
+          exit $LASTEXITCODE
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

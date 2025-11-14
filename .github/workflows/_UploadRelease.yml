@@ -17,6 +17,14 @@ jobs:
           name: Linux-sdist
           path: dist
 
+      - name: Rename sdist to .src.tgz
+        run: |
+          cd dist
+          old_file=$(ls pymca5-*.tar.gz)
+          new_file=$(echo "$old_file" | sed 's/^pymca5-/pymca/' | sed 's/\.tar\.gz$/.src.tgz/')
+          mv "$old_file" "$new_file"
+          echo "Renamed $old_file → $new_file"
+
       - name: Download the macOS universal2 artifact
         uses: actions/download-artifact@v4
         with:
@@ -32,16 +40,26 @@ jobs:
       - name: List all downloaded files
         run: ls -R dist
 
-      - name: Get latest version from TestPyPI
+      - name: Extract version from __init__.py
         id: get_version
+        shell: python
         run: |
-          PACKAGE="PyMca5"
-          META=$(curl -s https://test.pypi.org/pypi/$PACKAGE/json)
-          VERSION=$(echo "$META" | jq -r '.info.version')
-          echo "Latest version is $VERSION"
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          import os
+          path = 'src/PyMca5/__init__.py'
+  
+          version = None
+          with open(path, 'r') as f:
+              for line in f:
+                  if line.startswith('__version__'):
+                      version = line.replace(' ', '').split('=')[-1].strip().strip('"\'')
+                      break
+          assert version is not None, "Version not found in __init__.py"
+          print(version)
+          # Save version to GitHub output
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f"version={version}\n")
 
-      - name: Upload to GitHub Release (tar.gz, dmg, exe)
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: "v${{ steps.get_version.outputs.version }}"

@@ -10,50 +10,7 @@ env:
       local ARCH=$1
       local APP_PATH=$2
       set -e
-
-      echo "Launching PyMcaMain with $ARCH..."
-      LOGFILE=$(mktemp)
-
-      # Start the app in the background
-      arch -$ARCH "$APP_PATH" > "$LOGFILE" 2>&1 &
-      APP_PID=$!
-
-      echo "App started with PID $APP_PID"
-
-      # Wait up to 60 seconds for it to crash or hang
-      for i in {1..60}; do
-        if ! ps -p $APP_PID > /dev/null; then
-          echo "App exited early. Checking exit code..."
-          wait $APP_PID || true
-          EXIT_CODE=$?
-          echo "Exit code: $EXIT_CODE"
-          echo "App output log:"
-          cat "$LOGFILE"
-          if [ $EXIT_CODE -ne 0 ]; then
-            echo "App exited with error code $EXIT_CODE"
-            exit $EXIT_CODE
-          else
-            echo "App exited cleanly before 2 minutes."
-            return 0
-          fi
-        fi
-
-        if grep -qE 'ImportError|Traceback|ERROR:' "$LOGFILE"; then
-          echo "Detected error in application output:"
-          cat "$LOGFILE"
-          echo "Failing due to runtime error."
-          kill $APP_PID || true
-          wait $APP_PID || true
-          exit 1
-        fi
-
-        sleep 1
-      done
-
-      echo "App ran for one minute without crashing. Killing it now..."
-      kill $APP_PID || true
-      wait $APP_PID || true
-      echo "App test complete for $ARCH."
+      arch -$ARCH "$APP_PATH"
     }
 
 jobs:
@@ -77,6 +34,12 @@ jobs:
           echo "MACOSX_DEPLOYMENT_TARGET=11" >> $GITHUB_ENV
           echo "CFLAGS=-mmacosx-version-min=11" >> $GITHUB_ENV
           echo "LDFLAGS=-mmacosx-version-min=11" >> $GITHUB_ENV
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-latest-wheels
+          path: wheels
 
       - name: Install dependencies
         run: |
@@ -106,7 +69,7 @@ jobs:
           pip install PyInstaller==6.15.0
           pip install Cython
           pip install wheel
-          pip install --pre --index-url https://test.pypi.org/simple/ --trusted-host test.pypi.org --only-binary PyMca5 PyMca5
+          pip install wheels/
           pip install --no-build-isolation git+https://github.com/vasole/bcflight.git
           pip install ipywidgets
 
@@ -125,6 +88,8 @@ jobs:
         run: echo "APP_NAME=$(basename dist/*.app)" >> $GITHUB_ENV
 
       - name: Test the app
+        env:
+          PYMCA_TEST_MODE: 1
         run: |
           eval "$TEST_APP_FUNCTION"
           test_app arm64 "dist/$APP_NAME/Contents/MacOS/PyMcaMain"
@@ -167,6 +132,12 @@ jobs:
           file venv-x86_64/bin/python
           source venv-x86_64/bin/activate
 
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-latest-wheels
+          path: wheels
+
       - name: Install dependencies
         run: |
           source venv-x86_64/bin/activate
@@ -196,7 +167,7 @@ jobs:
           arch -x86_64 pip install PyInstaller==6.15.0
           arch -x86_64 pip install Cython
           arch -x86_64 pip install wheel
-          arch -x86_64 pip install --pre --index-url https://test.pypi.org/simple/ --trusted-host test.pypi.org --only-binary PyMca5 PyMca5
+          arch -x86_64 pip install wheels/
           arch -x86_64 pip install --no-build-isolation git+https://github.com/vasole/bcflight.git
           arch -x86_64 pip install ipywidgets
 
@@ -222,6 +193,8 @@ jobs:
         run: echo "APP_NAME=$(basename dist/*.app)" >> $GITHUB_ENV
 
       - name: Test the app
+        env:
+          PYMCA_TEST_MODE: 1
         run: |
           eval "$TEST_APP_FUNCTION"
           test_app x86_64 "dist/$APP_NAME/Contents/MacOS/PyMcaMain"
@@ -396,6 +369,8 @@ jobs:
         run: chmod +x dist/universal2/$APP_NAME/Contents/MacOS/PyMcaMain
 
       - name: Test the app for both architectures
+        env:
+          PYMCA_TEST_MODE: 1
         run: |
           eval "$TEST_APP_FUNCTION"
 

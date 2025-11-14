@@ -14,15 +14,26 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@v2
 
-    - name: Get latest version from TestPyPI
+    - name: Extract version from __init__.py
       id: get_version
+      shell: python
       run: |
-        PACKAGE="PyMca5"
-        META=$(curl -s https://test.pypi.org/pypi/$PACKAGE/json)
-        VERSION=$(echo "$META" | jq -r '.info.version')
-        echo "Latest version is $VERSION"
-        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        import os
+        path = 'src/PyMca5/__init__.py'
 
+        version = None
+        with open(path, 'r') as f:
+            for line in f:
+                if line.startswith('__version__'):
+                    version = line.replace(' ', '').split('=')[-1].strip().strip('"\'')
+                    break
+        assert version is not None, "Version not found in __init__.py"
+        print(version)
+        # Save version to GitHub output
+        with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+            f.write(f"version={version}\n")
+
+    # Do not simplify it as it was failing few times with untraceable 403 error
     - name: Create Git tag via API
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -32,6 +43,9 @@ jobs:
         API_VERSION="2022-11-28"
         TAG_NAME="v${TAG_VERSION}"
         REF_SHA="${{ github.sha }}"
+        
+        echo "Creating tag ${TAG_NAME} for commit ${REF_SHA}..."
+        
         RESPONSE=$(curl -s -o response.json -w "%{http_code}" \
           -L --request POST \
           --url "${API_URL}" \
@@ -42,9 +56,16 @@ jobs:
           --data "{
             \"ref\": \"refs/tags/${TAG_NAME}\",
             \"sha\": \"${REF_SHA}\"
-          }")
+          }" \
+          --verbose 2>curl.log)
+        
+        echo "The responce status: $RESPONSE"
+        
         if [[ "$RESPONSE" -ne 201 ]]; then
           echo "❌ GitHub API request failed with status code: $RESPONSE"
+          echo "=== CURL LOG ==="
+          cat curl.log
+          echo "=== RESPONSE BODY ==="
           cat response.json
           exit 1
         fi

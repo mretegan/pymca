@@ -43,11 +43,11 @@ The entire release pipeline can take about an hour.
 Test
 #######
 
-The CI run tests on wheels and only check that bundled versions do not crash on launch to avoid any incompatibility. That is why frozen (fat) binaries should be tested manually using the following procedure:
+The CI run tests on wheels and try to run tests in GUI. To be sure that there is no bugs the tests should be run directly in frozen (fat) binaries manually using the following procedure:
 
 `call/load 1D plugins` → `interactive console`
 
-.. image:: NavigationImages/InteractiveConsole.png
+.. image:: package/NavigationImages/InteractiveConsole.png
    :alt: interactive_console
 
 .. code:: bash
