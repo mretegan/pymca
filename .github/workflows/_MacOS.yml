@@ -4,15 +4,6 @@ on:
   workflow_dispatch:
   workflow_call:
 
-env:
-  TEST_APP_FUNCTION: |
-    test_app() {
-      local ARCH=$1
-      local APP_PATH=$2
-      set -e
-      arch -$ARCH "$APP_PATH"
-    }
-
 jobs:
   macos_arm64_dmg:
     runs-on: macos-latest
@@ -69,7 +60,7 @@ jobs:
           pip install PyInstaller==6.15.0
           pip install Cython
           pip install wheel
-          pip install wheels/
+          pip install wheels/*cp312*.whl
           pip install --no-build-isolation git+https://github.com/vasole/bcflight.git
           pip install ipywidgets
 
@@ -88,11 +79,9 @@ jobs:
         run: echo "APP_NAME=$(basename dist/*.app)" >> $GITHUB_ENV
 
       - name: Test the app
-        env:
-          PYMCA_TEST_MODE: 1
         run: |
-          eval "$TEST_APP_FUNCTION"
-          test_app arm64 "dist/$APP_NAME/Contents/MacOS/PyMcaMain"
+          set -e
+          arch -arm64 "dist/$APP_NAME/Contents/MacOS/PyMcaMain" --test
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -167,7 +156,7 @@ jobs:
           arch -x86_64 pip install PyInstaller==6.15.0
           arch -x86_64 pip install Cython
           arch -x86_64 pip install wheel
-          arch -x86_64 pip install wheels/
+          arch -x86_64 pip install wheels/*cp312*.whl
           arch -x86_64 pip install --no-build-isolation git+https://github.com/vasole/bcflight.git
           arch -x86_64 pip install ipywidgets
 
@@ -193,11 +182,9 @@ jobs:
         run: echo "APP_NAME=$(basename dist/*.app)" >> $GITHUB_ENV
 
       - name: Test the app
-        env:
-          PYMCA_TEST_MODE: 1
         run: |
-          eval "$TEST_APP_FUNCTION"
-          test_app x86_64 "dist/$APP_NAME/Contents/MacOS/PyMcaMain"
+          set -e
+          arch -x86_64 "dist/$APP_NAME/Contents/MacOS/PyMcaMain" --test
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -369,43 +356,87 @@ jobs:
         run: chmod +x dist/universal2/$APP_NAME/Contents/MacOS/PyMcaMain
 
       - name: Test the app for both architectures
-        env:
-          PYMCA_TEST_MODE: 1
         run: |
-          eval "$TEST_APP_FUNCTION"
+          set -e
+          arch -arm64 "dist/universal2/$APP_NAME/Contents/MacOS/PyMcaMain" --test
+          arch -x86_64 "dist/universal2/$APP_NAME/Contents/MacOS/PyMcaMain" --test
 
-          # Run tests for both architectures
-          test_app arm64 "dist/universal2/$APP_NAME/Contents/MacOS/PyMcaMain"
-          test_app x86_64 "dist/universal2/$APP_NAME/Contents/MacOS/PyMcaMain"
-
-      - name: Sign, create, and staple the universal2 DMG
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
-          CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
-          KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
-          APPLICATION_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APPLICATION_SPECIFIC_PASSWORD }}
-        run: |
-          # Copy the application to location expected by the packaging scripts.
-          mkdir -p package/pyinstaller/dist
-          cp -a dist/universal2/$APP_NAME package/pyinstaller/dist/PyMca.app
-          cd package/pyinstaller
-          # Remove unnecessary packages.
-          rm -fr dist/PyMca.app/Contents/Frameworks/pkg_resources/tests
-          mkdir -p artifacts
-          ./codesign.sh
-          ./create-dmg.sh
-          ./notarize.sh
-          VERSION=${APP_NAME#PyMca}; VERSION=${VERSION%.app}
-          mv artifacts/PyMca.dmg ../../dist/PyMca${VERSION}.dmg
-          cd ../..
-          rm -fr package/pyinstaller/dist
-          rm -fr package/pyinstaller/artifacts
-
-      - name: Upload the universal2 DMG artifact
+      - name: Upload universal .app artifact
         uses: actions/upload-artifact@v4
         with:
-          name: macos-universal2-dmg
-          path: dist/*.dmg
+          name: ${{ env.APP_NAME }}-universal-app
+          path: dist/universal2/*
           retention-days: 1
+
+      - name: Set app base name (without .app)
+        run: |
+          APP_BASE_NAME="${APP_NAME%.app}"
+          echo "APP_BASE_NAME=$APP_BASE_NAME" >> $GITHUB_ENV
+
+#      - name: Sign, create, and staple the universal2 DMG
+#        env:
+#          APPLE_ID: ${{ secrets.APPLE_ID }}
+#          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+#          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD }}
+#          CERTIFICATE_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64 }}
+#          KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+#          APPLICATION_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APPLICATION_SPECIFIC_PASSWORD }}
+#        run: |
+#          # Copy the application to location expected by the packaging scripts.
+#          mkdir -p package/pyinstaller/dist
+#          cp -a dist/universal2/$APP_NAME package/pyinstaller/dist/PyMca.app
+#          cd package/pyinstaller
+#          # Remove unnecessary packages.
+#          rm -fr dist/PyMca.app/Contents/Frameworks/pkg_resources/tests
+#          mkdir -p artifacts
+#          ./codesign.sh
+#          ./create-dmg.sh
+#          ./notarize.sh
+#          VERSION=${APP_NAME#PyMca}; VERSION=${VERSION%.app}
+#          mv artifacts/PyMca.dmg ../../dist/PyMca${VERSION}.dmg
+#          cd ../..
+#          rm -fr package/pyinstaller/dist
+#          rm -fr package/pyinstaller/artifacts
+#
+#      - name: Mount the DMG
+#        run: |
+#          set -e
+#          DMG_NAME="${{ env.APP_BASE_NAME }}.dmg"
+#          MOUNT_POINT="/Volumes/${{ env.APP_BASE_NAME }}"
+#
+#          echo "Mounting DMG $DMG_NAME at $MOUNT_POINT"
+#          hdiutil attach "dist/$DMG_NAME" -mountpoint "$MOUNT_POINT"
+#
+#      - name: Copy .app to /Applications
+#        run: |
+#          set -e
+#          APP_PATH="/Volumes/${{ env.APP_BASE_NAME }}/${{ env.APP_NAME }}"
+#          sudo cp -R "$APP_PATH" /Applications/
+#
+#      - name: Make main binary executable
+#        run: chmod +x /Applications/${{ env.APP_NAME }}/Contents/MacOS/PyMcaMain
+#
+#      - name: Run the x86_64 tests
+#        run: |
+#          set -e
+#          arch -x86_64 /Applications/${{ env.APP_NAME }}/Contents/MacOS/PyMcaMain --test
+#
+#      - name: Run the arm64 tests
+#        run: |
+#          set -e
+#          arch -arm64 /Applications/${{ env.APP_NAME }}/Contents/MacOS/PyMcaMain --test
+#
+#      - name: Unmount the DMG
+#        if: always()
+#        run: |
+#          set -e
+#          MOUNT_POINT="/Volumes/${{ env.APP_BASE_NAME }}"
+#          echo "Unmounting DMG at $MOUNT_POINT"
+#          hdiutil detach "$MOUNT_POINT"
+#
+#      - name: Upload the universal2 DMG artifact
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: macos-universal2-dmg
+#          path: dist/*.dmg
+#          retention-days: 1

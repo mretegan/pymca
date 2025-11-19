@@ -35,7 +35,7 @@ jobs:
           pip install matplotlib==3.10.5
           pip install lief==0.16.6
           pip install cx_Freeze==8.3.0
-          pip install wheels/
+          pip install $(python -c "import glob; print(' '.join(glob.glob('wheels/*cp313*.whl')))") 
           pip install Cython
           pip install numpy==2.2.6 
           pip install Pyside6==6.9.1
@@ -85,10 +85,8 @@ jobs:
           # Run installer silently (adjust /S as needed)
           Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait
 
-      - name: Run PyMcaMain with tests (Windows)
+      - name: Run tests
         shell: pwsh
-        env:
-          PYMCA_TEST_MODE: 1
         run: |
           # Define expected install paths
           $basePaths = @(
@@ -117,8 +115,8 @@ jobs:
           }
       
           Write-Host "Found executable at $appPath"
-          
-          & $appPath
+                    
+          & $appPath --test
           exit $LASTEXITCODE
 
       - name: Upload artifacts

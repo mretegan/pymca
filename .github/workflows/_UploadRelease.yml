@@ -11,6 +11,9 @@ jobs:
     name: Upload all packages
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
       - name: Download Linux artifact
         uses: actions/download-artifact@v4
         with:
