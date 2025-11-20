@@ -548,7 +548,12 @@ class RGBCorrelatorWidget(qt.QWidget):
             and self.currentNanColor == 'white'
         ):
             colorlist = ["r", "g", "b"]
-            nan_indices = numpy.where(numpy.isnan(self.__redImageData))
+            # if any element of R or G or B map is nan it will become white
+            nan_indices = numpy.where(
+                numpy.isnan(self.__redImageData) |
+                numpy.isnan(self.__greenImageData) |
+                numpy.isnan(self.__blueImageData)
+            )
             redImageData = numpy.copy(self.__redImageData)
             greenImageData = numpy.copy(self.__greenImageData)
             blueImageData = numpy.copy(self.__blueImageData)
