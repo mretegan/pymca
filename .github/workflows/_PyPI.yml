@@ -40,9 +40,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --upgrade twine
 
-#      - name: Upload to PyPI
-#        env:
-#          TWINE_USERNAME: __token__
-#          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-#        run: |
-#          python -m twine upload --verbose dist/*
+      - name: Upload to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        run: |
+          python -m twine upload --verbose dist/*

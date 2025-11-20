@@ -349,12 +349,12 @@ jobs:
         run: |
           find dist -type f \( -name '*.whl' -o -name '*.tar.gz' \)
 
-#      - name: Upload wheels to TestPyPI
-#        env:
-#          TWINE_USERNAME: __token__
-#          TWINE_PASSWORD: ${{ secrets.TESTPYPI_PASSWORD }}
-#        run: |
-#          files=$(find dist -type f \( -name '*.whl' -o -name '*.tar.gz' \))
-#          echo "Uploading files:"
-#          echo "$files"
-#          python -m twine upload --verbose --repository testpypi $files
+      - name: Upload wheels to TestPyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.TESTPYPI_PASSWORD }}
+        run: |
+          files=$(find dist -type f \( -name '*.whl' -o -name '*.tar.gz' \))
+          echo "Uploading files:"
+          echo "$files"
+          python -m twine upload --verbose --repository testpypi $files
