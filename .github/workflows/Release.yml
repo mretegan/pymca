@@ -9,10 +9,17 @@ on:
   workflow_dispatch:
     inputs:
       force:
-        description: 'Force release even if version was not changed'
-        required: false
-        default: 'false'
-        # change to 'true' for manual release
+        description: |
+          stop  - do nothing; safe precautions from accident run
+          force - to start release with same version (useful if previous CI failed before uploading wheels)
+          local - to test changes; it create only artifacts, no upload or tag
+        type: choice
+        options:
+          - stop
+          - force
+          - local
+        default: 'stop'
+
   push:
     branches:
       - master
@@ -43,8 +50,11 @@ jobs:
           if [[ -n "$changed" ]]; then
             echo "Version changed"
             echo "should_release=true" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.force }}" == "true" ]]; then
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.force }}" == "force" ]]; then
             echo "Release was triggered manually"
+            echo "should_release=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.force }}" == "local" ]]; then
+            echo "Not release but local test was started"
             echo "should_release=true" >> $GITHUB_OUTPUT
           else
             echo "No release... for now"
@@ -55,12 +65,14 @@ jobs:
     needs: version-change
     if: needs.version-change.outputs.should_release == 'true'
     uses: ./.github/workflows/_Version.yml
+    with:
+      skipper: ${{ github.event.inputs.force }}
 
   run-build-upload:
     needs: version-check
     uses: ./.github/workflows/_Wheels.yml
     secrets:
-      TESTPYPI_PASSWORD: ${{ secrets.TESTPYPI_PASSWORD }}
+      TESTPYPI_PASSWORD: ${{ github.event.inputs.force != 'local' && secrets.TESTPYPI_PASSWORD || '' }}
 
   trigger-windows-pyinstaller:
     needs: run-build-upload
@@ -75,6 +87,7 @@ jobs:
     uses: ./.github/workflows/_MacOS.yml
 
   tag-release:
+    if: github.event.inputs.force != 'local'
     permissions:
       contents: write
     needs:
@@ -83,12 +96,14 @@ jobs:
     uses: ./.github/workflows/_TagRelease.yml
 
   changelog:
+    if: github.event.inputs.force != 'local'
     permissions:
       contents: write
     needs: tag-release
     uses: ./.github/workflows/_ChangeLog.yml
 
   upload-release:
+    if: github.event.inputs.force != 'local'
     permissions:
       contents: write
     needs: tag-release
@@ -98,7 +113,7 @@ jobs:
     needs: tag-release
     uses: ./.github/workflows/_PyPI.yml
     secrets:
-      PYPI_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+      PYPI_PASSWORD: ${{ github.event.inputs.force != 'local' && secrets.PYPI_PASSWORD || '' }}
 
 
 

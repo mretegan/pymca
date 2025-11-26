@@ -1,8 +1,11 @@
 name: _Check version
 
 on:
-  workflow_dispatch:
   workflow_call:
+    inputs:
+      skipper:
+        type: string
+        required: false
 
 env:
   PROJECT: PyMca5
@@ -11,6 +14,7 @@ env:
 jobs:
   check-version-exists:
     runs-on: ubuntu-latest
+    if: ${{ inputs.skipper != 'local' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -82,3 +86,10 @@ jobs:
               exit(1)
           else:
               print(f"✅ Version {version} is new and OK to publish")
+
+  skipper:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.skipper == 'local' }}
+    steps:
+      - name: Pass
+        run: echo "Skipping version check because of local run"

@@ -410,21 +410,21 @@ jobs:
       - name: Copy .app to /Applications
         run: |
           set -e
-          APP_PATH="/Volumes/${{ env.APP_BASE_NAME }}/${{ env.APP_NAME }}"
+          APP_PATH="/Volumes/${{ env.APP_BASE_NAME }}/PyMca.app"
           sudo cp -R "$APP_PATH" /Applications/
 
       - name: Make main binary executable
-        run: chmod +x /Applications/${{ env.APP_NAME }}/Contents/MacOS/PyMcaMain
+        run: chmod +x /Applications/PyMca.app/Contents/MacOS/PyMcaMain
 
       - name: Run the x86_64 tests
         run: |
           set -e
-          arch -x86_64 /Applications/${{ env.APP_NAME }}/Contents/MacOS/PyMcaMain --test
+          arch -x86_64 /Applications/PyMca.app/Contents/MacOS/PyMcaMain --test
 
       - name: Run the arm64 tests
         run: |
           set -e
-          arch -arm64 /Applications/${{ env.APP_NAME }}/Contents/MacOS/PyMcaMain --test
+          arch -arm64 /Applications/PyMca.app/Contents/MacOS/PyMcaMain --test
 
       - name: Unmount the DMG
         if: always()

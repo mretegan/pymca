@@ -24,7 +24,7 @@ jobs:
         run: |
           cd dist
           old_file=$(ls pymca5-*.tar.gz)
-          new_file=$(echo "$old_file" | sed 's/^pymca5-/pymca/' | sed 's/\.tar\.gz$/.src.tgz/')
+          new_file=$(echo "$old_file" | sed 's/^pymca5-/pymca/' | sed 's/\.tar\.gz$/-src.tgz/')
           mv "$old_file" "$new_file"
           echo "Renamed $old_file → $new_file"
 
