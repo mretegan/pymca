@@ -1,10 +1,10 @@
 Contributing
 ============
 
-Developers installation
+Developer Installation
 -----------------------
 
-Editable install with all requirements
+Perform an editable install with all requirements
 
 .. code:: bash
 
@@ -23,29 +23,29 @@ or using the module directly
     python -m PyMca5.PyMcaGui.pymca.PyMcaMain
 
 Release
-----------
-Main steps
-#######
+-------
+
+Main Steps
+##########
 
 1) Update version in ``src/PyMca5/__init__.py``
 2) Wait until release action is finished
-3) Download and `test` Windwos and MacOS frozen binaries
+3) Download and `test` Windows and macOS frozen binaries
 4) Update ``changelog.txt``
 
 Start
-#######
+#####
 
-Start the release procedure by push a commit to the `master` branch with modified version in `src/PyMca5/__init__.py`. PRs do not work for releases. If the release pipeline fails during the `wheels` step before uploading to test-PyPI, changes can be commited and the release pipeline can be started manually.
-The release includes upload wheels to test-PyPI and PyPI as well as creating executable files (installer for Windows and universal dmg for MacOS).
+Start the release procedure by pushing a commit to the `master` branch with modified version in `src/PyMca5/__init__.py`. The release pipeline is not triggered by PRs. If the release pipeline fails during the `wheels` step before the upload to TestPyPI, changes can be committed and the release pipeline can be triggered manually. The release includes uploading wheels to TestPyPI and PyPI, as well as creating executable files (installer for Windows and universal DMG for macOS).
 
 The entire release pipeline can take about an hour.
 
-If you need to make complicated modifications into CI workflow - please create a fork run all your CI in the fork - you will need to comment uploading to testPyPI and PyPI as well as DMG packaging (since it require secrets).
+If you need to make complicated modifications to the CI workflow, please create a fork and run all your CI in the fork.
 
 Test
-#######
+####
 
-The CI run tests on wheels and try to run tests in GUI. To be sure that there is no bugs the tests should be run directly in frozen (fat) binaries manually using the following procedure:
+The CI runs tests on wheels and tries to run tests in the GUI. To be sure that there are no bugs, the tests should be run directly in frozen binaries manually using the following procedure:
 
 `call/load 1D plugins` → `interactive console`
 
@@ -59,7 +59,7 @@ The CI run tests on wheels and try to run tests in GUI. To be sure that there is
 
 Few tests will be skipped, and none should fail.
 
-Please notice that tests `should` be performed on Windows, MacOS-arm64 and MacOS-x86.
+Please note that tests should be performed on Windows, macOS-arm64 and macOS-x86.
 
 Changelog
 #########
@@ -68,8 +68,8 @@ A list of pull requests will be generated in the release comments but not in ``c
 
 Availability
 ############
-New versions of PyMca5 will be distributed via github releases.
+New versions of PyMca5 will be distributed via GitHub releases.
 
-Older version (<5.9.5) are available at https://sourceforge.net/projects/pymca/files/pymca/PyMca5.9.4/
+Older versions (<5.9.5) are available at https://sourceforge.net/projects/pymca/files/pymca/PyMca5.9.4/
 
 
