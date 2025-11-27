@@ -4,20 +4,17 @@ permissions:
   contents: write
 
 on:
-
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
-      force:
-        description: |
-          stop  - do nothing; safe precautions from accident run
-          force - to start release with same version (useful if previous CI failed before uploading wheels)
-          local - to test changes; it create only artifacts, no upload or tag
+      mode:
         type: choice
         options:
-          - stop
-          - force
-          - local
-        default: 'stop'
+          - do nothing # safe precaution from accident trigger
+          - force # ignore check of version change in last commit
+          - dry-run # for testing - no tag, no upload neither to TestPyPI nor to PyPI
+        default: 'do nothing'
 
   push:
     branches:
@@ -49,11 +46,11 @@ jobs:
           if [[ -n "$changed" ]]; then
             echo "Version changed"
             echo "should_release=true" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.force }}" == "force" ]]; then
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.mode }}" == "force" ]]; then
             echo "Release was triggered manually"
             echo "should_release=true" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.force }}" == "local" ]]; then
-            echo "Not release but local test was started"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.mode }}" == "dry-run" ]]; then
+            echo "Dry-run started"
             echo "should_release=true" >> $GITHUB_OUTPUT
           else
             echo "No release... for now"
@@ -65,13 +62,13 @@ jobs:
     if: needs.version-change.outputs.should_release == 'true'
     uses: ./.github/workflows/_Version.yml
     with:
-      skipper: ${{ github.event.inputs.force }}
+      skipper: ${{ github.event.inputs.mode }}
 
   run-build-upload:
     needs: version-check
     uses: ./.github/workflows/_Wheels.yml
     secrets:
-      TESTPYPI_PASSWORD: ${{ github.event.inputs.force != 'local' && secrets.TESTPYPI_PASSWORD || '' }}
+      TESTPYPI_PASSWORD: ${{ github.event.inputs.mode != 'dry-run' && secrets.TESTPYPI_PASSWORD || '' }}
 
   trigger-windows-pyinstaller:
     needs: run-build-upload
@@ -86,7 +83,7 @@ jobs:
     uses: ./.github/workflows/_MacOS.yml
 
   tag-release:
-    if: github.event.inputs.force != 'local'
+    if: github.event.inputs.mode != 'dry-run'
     permissions:
       contents: write
     needs:
@@ -95,14 +92,14 @@ jobs:
     uses: ./.github/workflows/_TagRelease.yml
 
   changelog:
-    if: github.event.inputs.force != 'local'
+    if: github.event.inputs.mode != 'dry-run'
     permissions:
       contents: write
     needs: tag-release
     uses: ./.github/workflows/_ChangeLog.yml
 
   upload-release:
-    if: github.event.inputs.force != 'local'
+    if: github.event.inputs.mode != 'dry-run'
     permissions:
       contents: write
     needs: tag-release
@@ -112,7 +109,4 @@ jobs:
     needs: tag-release
     uses: ./.github/workflows/_PyPI.yml
     secrets:
-      PYPI_PASSWORD: ${{ github.event.inputs.force != 'local' && secrets.PYPI_PASSWORD || '' }}
-
-
-
+      PYPI_PASSWORD: ${{ github.event.inputs.mode != 'dry-run' && secrets.PYPI_PASSWORD || '' }}
