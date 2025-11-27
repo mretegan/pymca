@@ -14,7 +14,7 @@ env:
 jobs:
   check-version-exists:
     runs-on: ubuntu-latest
-    if: ${{ inputs.skipper != 'local' }}
+    if: ${{ inputs.skipper != 'dry-run' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -22,7 +22,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v2
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
@@ -89,7 +89,7 @@ jobs:
 
   skipper:
     runs-on: ubuntu-latest
-    if: ${{ inputs.skipper == 'local' }}
+    if: ${{ inputs.skipper == 'dry-run' }}
     steps:
       - name: Pass
-        run: echo "Skipping version check because of local run"
+        run: echo "Skipping version check because of dry-run"
