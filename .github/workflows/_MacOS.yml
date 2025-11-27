@@ -3,6 +3,19 @@ name: _MacOs
 on:
   workflow_dispatch:
   workflow_call:
+    secrets:
+      APPLE_ID:
+        required: true
+      APPLE_TEAM_ID:
+        required: true
+      APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_PASSWORD:
+        required: true
+      APPLE_DEVELOPER_ID_APPLICATION_CERTIFICATE_BASE64:
+        required: true
+      APPLE_KEYCHAIN_PASSWORD:
+        required: true
+      APPLE_APPLICATION_SPECIFIC_PASSWORD:
+        required: true
 
 jobs:
   macos_arm64_dmg:
@@ -382,14 +395,6 @@ jobs:
           KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
           APPLICATION_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APPLICATION_SPECIFIC_PASSWORD }}
         run: |
-          echo "Checking if secrets are set:"
-          [ -n "$APPLE_ID" ] && echo "APPLE_ID is set" || echo "APPLE_ID is not set"
-          [ -n "$APPLE_TEAM_ID" ] && echo "APPLE_TEAM_ID is set" || echo "APPLE_TEAM_ID is not set"
-          [ -n "$CERTIFICATE_PASSWORD" ] && echo "CERTIFICATE_PASSWORD is set" || echo "CERTIFICATE_PASSWORD is not set"
-          [ -n "$CERTIFICATE_BASE64" ] && echo "CERTIFICATE_BASE64 is set" || echo "CERTIFICATE_BASE64 is not set"
-          [ -n "$KEYCHAIN_PASSWORD" ] && echo "KEYCHAIN_PASSWORD is set" || echo "KEYCHAIN_PASSWORD is not set"
-          [ -n "$APPLICATION_SPECIFIC_PASSWORD" ] && echo "APPLICATION_SPECIFIC_PASSWORD is set" || echo "APPLICATION_SPECIFIC_PASSWORD is not set"
-
           # Copy the application to location expected by the packaging scripts.
           mkdir -p package/pyinstaller/dist
           cp -a dist/universal2/$APP_NAME package/pyinstaller/dist/PyMca.app
