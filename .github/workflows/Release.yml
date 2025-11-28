@@ -9,18 +9,19 @@ on:
   workflow_dispatch:
     inputs:
       mode:
+        description: "Release mode"
         type: choice
         options:
           - do nothing # safe precaution from accident trigger
           - force # ignore check of version change in last commit
           - dry-run # for testing - no tag, no upload neither to TestPyPI nor to PyPI
-        default: 'do nothing'
+        default: "do nothing"
 
   push:
     branches:
       - master
     paths:
-      - 'src/PyMca5/__init__.py'
+      - "src/PyMca5/__init__.py"
 
 jobs:
   version-change:
