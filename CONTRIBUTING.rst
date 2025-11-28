@@ -68,8 +68,9 @@ A list of pull requests will be generated in the release comments but not in ``c
 
 Availability
 ############
-New versions of PyMca5 will be distributed via GitHub releases.
 
-Older versions (<5.9.5) are available at https://sourceforge.net/projects/pymca/files/pymca/PyMca5.9.4/
+New versions of PyMca5 will be distributed via GitHub releases at https://github.com/silx-kit/pymca/releases.
+
+Older versions (pre 5.9.5) are available at https://sourceforge.net/projects/pymca/files/pymca.
 
 
